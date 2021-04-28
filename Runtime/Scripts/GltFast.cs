@@ -112,7 +112,7 @@ namespace GLTFast {
             KTX
         }
         
-        static IDeferAgent defaultDeferAgent;
+        IDeferAgent defaultDeferAgent;
         
         IDownloadProvider downloadProvider;
         IMaterialGenerator materialGenerator;
