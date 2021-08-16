@@ -14,6 +14,9 @@
 //
 
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
 using UnityEngine;
 
 namespace GLTFast {
@@ -25,6 +28,9 @@ namespace GLTFast {
 
         public static Uri GetBaseUri( Uri uri ) {
             if(uri==null) return null;
+            if (!uri.IsAbsoluteUri) {
+                return new Uri(Path.GetDirectoryName(uri.OriginalString), UriKind.Relative);
+            }
             return new Uri(uri, ".");
         }
 
@@ -39,8 +45,75 @@ namespace GLTFast {
             if(Uri.TryCreate(uri, UriKind.Absolute, out var result)){
                 return result;
             }
-            if(baseUri!=null) return new Uri(baseUri,uri);
+
+            if (baseUri != null) {
+                uri = RemoveDotSegments(uri, out var parentLevels);
+                if (baseUri.IsAbsoluteUri) {
+                    for (int i = 0; i < parentLevels; i++) {
+                        baseUri = new Uri(baseUri, "..");
+                    }
+                    return new Uri(baseUri, uri);
+                }
+
+                var parentPath = baseUri.OriginalString;
+                for (int i = 0; i < parentLevels; i++) {
+                    parentPath = Path.GetDirectoryName(parentPath);
+                    if (string.IsNullOrEmpty(parentPath)) {
+                        baseUri = new Uri("",UriKind.Relative);
+                        break;
+                    }
+                    baseUri = new Uri(parentPath, UriKind.Relative);
+                }
+                return new Uri(Path.Combine(baseUri.OriginalString, uri), UriKind.Relative);
+            }
             return new Uri(uri,UriKind.RelativeOrAbsolute);
+        }
+
+        /// <summary>
+        /// Removes relative dot segments "." and ".." and resolves them.
+        /// See https://datatracker.ietf.org/doc/html/rfc3986#section-5.2.4
+        /// </summary>
+        /// <param name="uri">relative input path</param>
+        /// <param name="parentLevels">Number of levels going beyond this paths hierarchy (due to "..")</param>
+        /// <returns>Resolved/compressed nput path without dot segments</returns>
+        public static string RemoveDotSegments(string uri, out int parentLevels) {
+            var segments = new List<string>();
+            var start = 0;
+            parentLevels = 0;
+            while(true) {
+                var i = uri.IndexOf('/',start);
+                var found = i >= 0;
+                var len = found ? (i - start) : uri.Length-start;
+                    if (len > 0) {
+                        var segment = uri.Substring(start, len);
+                        
+                        if (segment == "..") {
+                            if (segments.Count > 0) {
+                                segments.RemoveAt(segments.Count-1);
+                            } else {
+                                parentLevels++;
+                            }
+                        }
+                        else if(segment != ".") {
+                            segments.Add(segment);
+                        }
+                    }
+                if (!found) {
+                    break;
+                }
+                start = i+1;
+            }
+
+            var sb = new StringBuilder();
+            var first = true;
+            foreach (var segment in segments) {
+                if (!first) {
+                    sb.Append('/');
+                }
+                sb.Append(segment);
+                first = false;
+            }
+            return sb.ToString();
         }
 
         /// <summary>
@@ -61,6 +134,24 @@ namespace GLTFast {
             return null;
         }
 
+        /// <summary>
+        /// Detect image format from URI string
+        /// </summary>
+        /// <param name="uri">Input URI string</param>
+        /// <returns>ImageFormat if detected correctly, ImageFormat.Unkonwn otherwise</returns>
+        internal static ImageFormat GetImageFormatFromUri(string uri) {
+            if (string.IsNullOrEmpty(uri)) return ImageFormat.Unknown;
+            var queryStartIndex = uri.LastIndexOf('?');
+            if (queryStartIndex < 0) queryStartIndex = uri.Length;
+            var extStartIndex = uri.LastIndexOf('.', queryStartIndex-1,Mathf.Min(5,queryStartIndex)); // we assume that the first period before the query string is the file format period.
+            if (extStartIndex < 0) return ImageFormat.Unknown; // if we can't find a period, we don't know the file format.
+            var fileExtension = uri.Substring(extStartIndex+1, queryStartIndex - extStartIndex - 1); // extract the file ending
+            if (fileExtension.Equals("png", StringComparison.OrdinalIgnoreCase)) return ImageFormat.PNG;
+            if (fileExtension.Equals("jpg", StringComparison.OrdinalIgnoreCase) || fileExtension.Equals("jpeg", StringComparison.OrdinalIgnoreCase)) return ImageFormat.Jpeg;
+            if (fileExtension.Equals("ktx", StringComparison.OrdinalIgnoreCase) || fileExtension.Equals("ktx2", StringComparison.OrdinalIgnoreCase)) return ImageFormat.KTX;
+            return ImageFormat.Unknown;
+        }
+        
         /// string-based IsGltfBinary alternative
         /// Profiling result: Faster/less memory, but for .glb/.gltf just barely better (uknown ~2x)
         /// Downside: less convenient

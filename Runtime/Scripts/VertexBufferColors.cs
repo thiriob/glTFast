@@ -17,6 +17,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using UnityEngine;
+using UnityEngine.Assertions;
 using UnityEngine.Profiling;
 using UnityEngine.Rendering;
 
@@ -26,36 +27,40 @@ namespace GLTFast {
     using Schema;
 
     abstract class VertexBufferColorsBase {
-        public abstract unsafe bool ScheduleVertexColorJob(VertexInputData colorInput, NativeSlice<JobHandle> handles);
+        public abstract bool ScheduleVertexColorJob(IGltfBuffers buffers, int colorAccessorIndex, NativeSlice<JobHandle> handles);
         public abstract void AddDescriptors(VertexAttributeDescriptor[] dst, int offset, int stream);
         public abstract void ApplyOnMesh(UnityEngine.Mesh msh, int stream, MeshUpdateFlags flags = PrimitiveCreateContextBase.defaultMeshUpdateFlags);
         public abstract void Dispose();
+
+        protected ICodeLogger logger;
     }
 
     class VertexBufferColors : VertexBufferColorsBase {
         NativeArray<Color> vData;
 
-        public override unsafe bool ScheduleVertexColorJob(VertexInputData colorInput, NativeSlice<JobHandle> handles) {
+        public override unsafe bool ScheduleVertexColorJob(IGltfBuffers buffers, int colorAccessorIndex, NativeSlice<JobHandle> handles) {
             Profiler.BeginSample("ScheduleVertexColorJob");
             Profiler.BeginSample("AllocateNativeArray");
-            vData = new NativeArray<Color>(colorInput.count, VertexBufferConfigBase.defaultAllocator);
+            buffers.GetAccessor(colorAccessorIndex, out var colorAcc, out var data, out var byteStride);
+            if (colorAcc.isSparse) {
+                logger.Error(LogCode.SparseAccessor,"color");
+            }
+            vData = new NativeArray<Color>(colorAcc.count, VertexBufferConfigBase.defaultAllocator);
             var vDataPtr = (byte*) NativeArrayUnsafeUtility.GetUnsafeReadOnlyPtr(vData);
             Profiler.EndSample();
-
-            fixed( void* input = &(colorInput.buffer[colorInput.startOffset])) {
-                var h = GetColors32Job(
-                    input,
-                    colorInput.type,
-                    colorInput.attributeType,
-                    colorInput.byteStride,
-                    vData
-                );
-                if (h.HasValue) {
-                    handles[0] = h.Value;
-                } else {
-                    Profiler.EndSample();
-                    return false;
-                }
+            
+            var h = GetColors32Job(
+                data,
+                colorAcc.componentType,
+                colorAcc.typeEnum,
+                byteStride,
+                vData
+            );
+            if (h.HasValue) {
+                handles[0] = h.Value;
+            } else {
+                Profiler.EndSample();
+                return false;
             }
             Profiler.EndSample();
             return true;
@@ -99,7 +104,7 @@ namespace GLTFast {
                                 inputByteStride = inputByteStride>0 ? inputByteStride : 3,
                                 result = output
                             };
-                            jobHandle = job.Schedule(output.Length,GLTFast.DefaultBatchCount);
+                            jobHandle = job.Schedule(output.Length,GltfImport.DefaultBatchCount);
                         }
                         break;
                     case GLTFComponentType.Float:
@@ -109,7 +114,7 @@ namespace GLTFast {
                                 inputByteStride = inputByteStride>0 ? inputByteStride : 12,
                                 result = output
                             };
-                            jobHandle = job.Schedule(output.Length,GLTFast.DefaultBatchCount);
+                            jobHandle = job.Schedule(output.Length,GltfImport.DefaultBatchCount);
                         }
                         break;
                     case GLTFComponentType.UnsignedShort:
@@ -119,11 +124,11 @@ namespace GLTFast {
                                 inputByteStride = inputByteStride>0 ? inputByteStride : 6,
                                 result = output
                             };
-                            jobHandle = job.Schedule(output.Length,GLTFast.DefaultBatchCount);
+                            jobHandle = job.Schedule(output.Length,GltfImport.DefaultBatchCount);
                         }
                         break;
                     default:
-                        Debug.LogErrorFormat(GLTFast.ErrorUnsupportedColorFormat, attributeType);
+                        logger?.Error(LogCode.ColorFormatUnsupported,attributeType.ToString());
                         break;
                 }
             }
@@ -138,7 +143,7 @@ namespace GLTFast {
                                 inputByteStride = inputByteStride > 0 ? inputByteStride : 4,
                                 result = output
                             };
-                            jobHandle = job.Schedule(output.Length,GLTFast.DefaultBatchCount);
+                            jobHandle = job.Schedule(output.Length,GltfImport.DefaultBatchCount);
                         }
                         break;
                     case GLTFComponentType.Float:
@@ -157,15 +162,15 @@ namespace GLTFast {
                                 inputByteStride = inputByteStride>0 ? inputByteStride : 8,
                                 result = output
                             };
-                            jobHandle = job.Schedule(output.Length,GLTFast.DefaultBatchCount);
+                            jobHandle = job.Schedule(output.Length,GltfImport.DefaultBatchCount);
                         }
                         break;
                     default:
-                        Debug.LogErrorFormat(GLTFast.ErrorUnsupportedColorFormat, attributeType);
+                        logger?.Error(LogCode.ColorFormatUnsupported, attributeType.ToString());
                         break;
                 }
             } else {
-                Debug.LogErrorFormat(GLTFast.ErrorUnsupportedType, "color accessor", inputType);
+                logger?.Error(LogCode.TypeUnsupported, "color accessor", inputType.ToString());
             }
             Profiler.EndSample();
             return jobHandle;

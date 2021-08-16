@@ -13,14 +13,9 @@
 // limitations under the License.
 //
 
-#if !UNITY_2019_3_OR_NEWER
-#define LEGACY_MESH
-#endif
-
 using UnityEngine;
 using UnityEngine.Rendering;
 using Unity.Jobs;
-using Unity.Collections;
 using System.Runtime.InteropServices;
 using UnityEngine.Profiling;
 
@@ -40,11 +35,7 @@ namespace GLTFast {
 
         public MeshTopology topology;
 
-        public override bool IsCompleted {
-            get {
-                return jobHandle.IsCompleted;
-            }  
-        }
+        public override bool IsCompleted => jobHandle.IsCompleted;
 
         public override Primitive? CreatePrimitive() {
             Profiler.BeginSample("CreatePrimitive");
@@ -125,6 +116,10 @@ namespace GLTFast {
             // msh.UploadMeshData(true);
             // Profiler.EndSample();
 #endif
+
+            if (morphTargetsContext != null) {
+                morphTargetsContext.ApplyOnMeshAndDispose(msh);
+            }
 
             Profiler.BeginSample("Dispose");
             Dispose();

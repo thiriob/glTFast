@@ -14,6 +14,7 @@
 //
 
 using System;
+using System.IO;
 using NUnit.Framework;
 using UnityEngine.Profiling;
 
@@ -72,16 +73,104 @@ namespace GLTFast.Tests
             // special char `+`
             Assert.AreEqual(new Uri("https://www.server.com/dir/sub/"),UriHelper.GetBaseUri(new Uri("https://www.server.com/dir/sub/file+test.gltf")));
             Assert.AreEqual(new Uri("file:///dir/sub/"),UriHelper.GetBaseUri(new Uri("file:///dir/sub/file+test.gltf")));
+            
+            
+            // relative paths
+            var uri = new Uri("Assets/Some/Path/asset.glb", UriKind.Relative);
+            Assert.AreEqual(new Uri("Assets/Some/Path",UriKind.Relative),UriHelper.GetBaseUri(uri));
         }
 
         [Test]
         public void GetUriStringTest()
         {
             var baseUri = new Uri("http://www.server.com/dir/sub/");
+            
+            Assert.AreEqual(
+                "file+test.gltf",
+                UriHelper.GetUriString("file+test.gltf",null).ToString()
+                );
+            Assert.AreEqual(
+                "http://www.server.com/dir/sub/file+test.gltf",
+                UriHelper.GetUriString("file+test.gltf",baseUri).ToString()
+                );
+            Assert.AreEqual(
+                "http://www.server.com/dir/sub/sub2/sub3/file+test.gltf",
+                UriHelper.GetUriString("sub2/sub3/file+test.gltf",baseUri).ToString()
+                );
+            Assert.AreEqual(
+                "http://www.server.com/dir/sub/file.gltf",
+                UriHelper.GetUriString("./file.gltf",baseUri).ToString()
+                );
+            Assert.AreEqual(
+                "http://www.server.com/dir/file.gltf",
+                UriHelper.GetUriString("../file.gltf",baseUri).ToString()
+                );
+            Assert.AreEqual(
+                "http://www.server.com/dir/x/file.gltf",
+                UriHelper.GetUriString("../x/file.gltf",baseUri).ToString()
+                );
+            Assert.AreEqual(
+                "http://www.server.com/dir/other_folder/texture.png",
+                UriHelper.GetUriString("../other_folder/texture.png",baseUri).ToString()
+                );
+            Assert.AreEqual(
+                "http://www.server.com/dir/sub/asset.glb",
+                UriHelper.GetUriString("asset.glb",baseUri).ToString()
+                );
+            Assert.AreEqual(
+                "http://www.server.com/other_folder/texture.png",
+                UriHelper.GetUriString("../../../../other_folder/texture.png",baseUri).ToString()
+            );
+            Assert.AreEqual("http://www.server.com/dir/sub/", baseUri.ToString());
+            
+            var relBaseUri = new Uri("Assets/Some/Path", UriKind.Relative);
+            Assert.AreEqual(
+                "Assets/Some/Path/asset.glb",
+                UriHelper.GetUriString("asset.glb",relBaseUri).ToString()
+                );
+            Assert.AreEqual(
+                "Assets/Some/other_folder/texture.png",
+                UriHelper.GetUriString("../other_folder/texture.png",relBaseUri).ToString()
+                );
+            Assert.AreEqual(
+                "other_folder/texture.png",
+                UriHelper.GetUriString("../../../other_folder/texture.png",relBaseUri).ToString()
+                );
+            Assert.AreEqual(
+                "other_folder/texture.png",
+                UriHelper.GetUriString("../../../../other_folder/texture.png",relBaseUri).ToString()
+                );
+            Assert.AreEqual(
+                new Uri("Assets/Some/Path", UriKind.Relative),
+                relBaseUri
+                );
+        }
 
-            Assert.AreEqual( new Uri("file+test.gltf",UriKind.RelativeOrAbsolute), UriHelper.GetUriString("file+test.gltf",null));
-            Assert.AreEqual( new Uri("http://www.server.com/dir/sub/file+test.gltf",UriKind.RelativeOrAbsolute), UriHelper.GetUriString("file+test.gltf",baseUri));
-            Assert.AreEqual( new Uri("http://www.server.com/dir/sub/sub2/sub3/file+test.gltf",UriKind.RelativeOrAbsolute), UriHelper.GetUriString("sub2/sub3/file+test.gltf",baseUri));
+        [Test]
+        public void RemoveDotSegments() {
+            var s = UriHelper.RemoveDotSegments("file.txt", out var parentLevels);
+            Assert.AreEqual("file.txt",s);
+            Assert.AreEqual(0,parentLevels);
+            
+            s = UriHelper.RemoveDotSegments("../other_folder/file.txt", out parentLevels);
+            Assert.AreEqual("other_folder/file.txt",s);
+            Assert.AreEqual(1,parentLevels);
+            
+            s = UriHelper.RemoveDotSegments("other_folder/../file.txt", out parentLevels);
+            Assert.AreEqual("file.txt",s);
+            Assert.AreEqual(0,parentLevels);
+            
+            s = UriHelper.RemoveDotSegments("other_folder/./file.txt", out parentLevels);
+            Assert.AreEqual("other_folder/file.txt",s);
+            Assert.AreEqual(0,parentLevels);
+            
+            s = UriHelper.RemoveDotSegments("other_folder/./../x/../file.txt", out parentLevels);
+            Assert.AreEqual("file.txt",s);
+            Assert.AreEqual(0,parentLevels);
+            
+            s = UriHelper.RemoveDotSegments("../other_folder/../x/../file.txt", out parentLevels);
+            Assert.AreEqual("file.txt",s);
+            Assert.AreEqual(1,parentLevels);
         }
 
         [Test]
@@ -107,6 +196,38 @@ namespace GLTFast.Tests
                 }
             }
             Profiler.EndSample();
+        }
+
+        [Test]
+        public void GetImageFormatFromUriTest() {
+            Assert.AreEqual(ImageFormat.Unknown, UriHelper.GetImageFormatFromUri(null)); // shortest path
+            Assert.AreEqual(ImageFormat.Unknown, UriHelper.GetImageFormatFromUri("")); // shortest path
+            Assert.AreEqual(ImageFormat.Unknown, UriHelper.GetImageFormatFromUri("f")); // shortest path
+            
+            Assert.AreEqual(ImageFormat.Jpeg, UriHelper.GetImageFormatFromUri("f.jpg")); // shortest path
+            Assert.AreEqual(ImageFormat.Jpeg, UriHelper.GetImageFormatFromUri("file:///Some/Path/file.jpg"));
+            Assert.AreEqual(ImageFormat.Jpeg, UriHelper.GetImageFormatFromUri("http://server.com/some.Path/file.jpg"));
+            Assert.AreEqual(ImageFormat.Jpeg, UriHelper.GetImageFormatFromUri("https://server.com/some.Path/file.jpg?key=value.with.dots&otherkey=val&arrval[]=x"));
+            
+            Assert.AreEqual(ImageFormat.Jpeg, UriHelper.GetImageFormatFromUri("f.jpeg")); // shortest path
+            Assert.AreEqual(ImageFormat.Jpeg, UriHelper.GetImageFormatFromUri("file:///Some/Path/file.jpeg"));
+            Assert.AreEqual(ImageFormat.Jpeg, UriHelper.GetImageFormatFromUri("http://server.com/some.Path/file.jpeg"));
+            Assert.AreEqual(ImageFormat.Jpeg, UriHelper.GetImageFormatFromUri("https://server.com/some.Path/file.jpeg?key=value.with.dots&otherkey=val&arrval[]=x"));
+            
+            Assert.AreEqual(ImageFormat.PNG, UriHelper.GetImageFormatFromUri("f.png")); // shortest path
+            Assert.AreEqual(ImageFormat.PNG, UriHelper.GetImageFormatFromUri("file:///Some/Path/file.png"));
+            Assert.AreEqual(ImageFormat.PNG, UriHelper.GetImageFormatFromUri("http://server.com/some.Path/file.png"));
+            Assert.AreEqual(ImageFormat.PNG, UriHelper.GetImageFormatFromUri("https://server.com/some.Path/file.png?key=value.with.dots&otherkey=val&arrval[]=x"));
+            
+            Assert.AreEqual(ImageFormat.KTX, UriHelper.GetImageFormatFromUri("f.ktx")); // shortest path
+            Assert.AreEqual(ImageFormat.KTX, UriHelper.GetImageFormatFromUri("file:///Some/Path/file.ktx"));
+            Assert.AreEqual(ImageFormat.KTX, UriHelper.GetImageFormatFromUri("http://server.com/some.Path/file.ktx"));
+            Assert.AreEqual(ImageFormat.KTX, UriHelper.GetImageFormatFromUri("https://server.com/some.Path/file.ktx?key=value.with.dots&otherkey=val&arrval[]=x"));
+            
+            Assert.AreEqual(ImageFormat.KTX, UriHelper.GetImageFormatFromUri("f.ktx2")); // shortest path
+            Assert.AreEqual(ImageFormat.KTX, UriHelper.GetImageFormatFromUri("file:///Some/Path/file.ktx2"));
+            Assert.AreEqual(ImageFormat.KTX, UriHelper.GetImageFormatFromUri("http://server.com/some.Path/file.ktx2"));
+            Assert.AreEqual(ImageFormat.KTX, UriHelper.GetImageFormatFromUri("https://server.com/some.Path/file.ktx2?key=value.with.dots&otherkey=val&arrval[]=x"));
         }
     }
 }

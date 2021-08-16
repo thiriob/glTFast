@@ -23,6 +23,10 @@ namespace GLTFast.FakeSchema {
         /// </summary>
         public Material[] materials;
 
+#if GLTFAST_SAFE
+        public Accessor[] accessors;
+#endif
+
 #if DRACO_UNITY
         public Mesh[] meshes;
 #endif

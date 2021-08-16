@@ -17,6 +17,7 @@ using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
 using UnityEngine;
+using UnityEngine.Assertions;
 using UnityEngine.Profiling;
 using UnityEngine.Rendering;
 
@@ -26,9 +27,16 @@ namespace GLTFast {
     using Schema;
 
     abstract class VertexBufferTexCoordsBase {
+        
+        protected ICodeLogger logger;
+
+        public VertexBufferTexCoordsBase(ICodeLogger logger) {
+            this.logger = logger;
+        }
+        
         public int uvSetCount { get; protected set; }
-        public abstract unsafe bool ScheduleVertexUVJobs(VertexInputData[] uvInputs, NativeSlice<JobHandle> handles);
-        public abstract void AddDescriptors(VertexAttributeDescriptor[] dst, int offset, int stream);
+        public abstract bool ScheduleVertexUVJobs(IGltfBuffers buffers, int[] uvAccessorIndices, int vertexCount, NativeSlice<JobHandle> handles);
+        public abstract void AddDescriptors(VertexAttributeDescriptor[] dst, ref int offset, int stream);
         public abstract void ApplyOnMesh(UnityEngine.Mesh msh, int stream, MeshUpdateFlags flags = PrimitiveCreateContextBase.defaultMeshUpdateFlags);
         public abstract void Dispose();
     }
@@ -36,46 +44,51 @@ namespace GLTFast {
     class VertexBufferTexCoords<T> : VertexBufferTexCoordsBase where T : struct {
         NativeArray<T> vData;
 
-        public override unsafe bool ScheduleVertexUVJobs(VertexInputData[] uvInputs, NativeSlice<JobHandle> handles) {
+        public VertexBufferTexCoords(ICodeLogger logger) : base(logger) {}
+        
+        public override unsafe bool ScheduleVertexUVJobs(IGltfBuffers buffers, int[] uvAccessorIndices, int vertexCount, NativeSlice<JobHandle> handles) {
             Profiler.BeginSample("ScheduleVertexUVJobs");
             Profiler.BeginSample("AllocateNativeArray");
-            vData = new NativeArray<T>(uvInputs[0].count, VertexBufferConfigBase.defaultAllocator);
+            vData = new NativeArray<T>( vertexCount, VertexBufferConfigBase.defaultAllocator);
             var vDataPtr = (byte*) NativeArrayUnsafeUtility.GetUnsafeReadOnlyPtr(vData);
             Profiler.EndSample();
-            uvSetCount = uvInputs.Length;
-            int outputByteStride = uvInputs.Length * 8;
+            uvSetCount = uvAccessorIndices.Length;
+            int outputByteStride = uvAccessorIndices.Length * 8;
 
-            for (int i=0; i<uvInputs.Length; i++) {
-                var uvInput = uvInputs[i];
-                fixed( void* input = &(uvInput.buffer[uvInput.startOffset])) {
-                    var h = GetUvsJob(
-                        input,
-                        uvInput.count,
-                        uvInput.type,
-                        uvInput.byteStride,
-                        (Vector2*) (vDataPtr+(i*8)),
-                        outputByteStride,
-                        uvInput.normalize
-                    );
-                    if (h.HasValue) {
-                        handles[i] = h.Value;
-                    } else {
-                        Profiler.EndSample();
-                        return false;
-                    }
+            for (int i=0; i<uvAccessorIndices.Length; i++) {
+                var accIndex = uvAccessorIndices[i];
+                buffers.GetAccessor(accIndex, out var uvAcc, out var data, out var byteStride);
+                if (uvAcc.isSparse) {
+                    logger.Error(LogCode.SparseAccessor,"UVs");
+                }
+                var h = GetUvsJob(
+                    data,
+                    uvAcc.count,
+                    uvAcc.componentType,
+                    byteStride,
+                    (Vector2*) (vDataPtr+(i*8)),
+                    outputByteStride,
+                    uvAcc.normalized
+                );
+                if (h.HasValue) {
+                    handles[i] = h.Value;
+                } else {
+                    Profiler.EndSample();
+                    return false;
                 }
             }
             Profiler.EndSample();
             return true;
         }
 
-        public override void AddDescriptors(VertexAttributeDescriptor[] dst, int offset, int stream) {
+        public override void AddDescriptors(VertexAttributeDescriptor[] dst, ref int offset, int stream) {
             VertexAttribute vatt = VertexAttribute.TexCoord0;
             for (int i = 0; i < uvSetCount; i++) {
                 if (i == 1) {
                     vatt = VertexAttribute.TexCoord1;
                 }
-                dst[offset+i] = new VertexAttributeDescriptor(vatt, VertexAttributeFormat.Float32, 2, stream);
+                dst[offset] = new VertexAttributeDescriptor(vatt, VertexAttributeFormat.Float32, 2, stream);
+                offset++;
             }
         }
 
@@ -113,7 +126,7 @@ namespace GLTFast {
                         outputByteStride = outputByteStride,
                         result = output
                     };
-                    jobHandle = jobUv.Schedule(count,GLTFast.DefaultBatchCount);
+                    jobHandle = jobUv.Schedule(count,GltfImport.DefaultBatchCount);
                 }
                 break;
             case GLTFComponentType.UnsignedByte:
@@ -124,7 +137,7 @@ namespace GLTFast {
                         outputByteStride = outputByteStride,
                         result = output
                     };
-                    jobHandle = jobUv.Schedule(count,GLTFast.DefaultBatchCount);
+                    jobHandle = jobUv.Schedule(count,GltfImport.DefaultBatchCount);
                 } else {
                     var jobUv = new Jobs.GetUVsUInt8InterleavedJob {
                         inputByteStride = (inputByteStride>0) ? inputByteStride : 2,
@@ -132,7 +145,7 @@ namespace GLTFast {
                         outputByteStride = outputByteStride,
                         result = output
                     };
-                    jobHandle = jobUv.Schedule(count,GLTFast.DefaultBatchCount);
+                    jobHandle = jobUv.Schedule(count,GltfImport.DefaultBatchCount);
                 }
                 break;
             case GLTFComponentType.UnsignedShort:
@@ -143,7 +156,7 @@ namespace GLTFast {
                         outputByteStride = outputByteStride,
                         result = output
                     };
-                    jobHandle = jobUv.Schedule(count,GLTFast.DefaultBatchCount);
+                    jobHandle = jobUv.Schedule(count,GltfImport.DefaultBatchCount);
                 } else {
                     var jobUv = new Jobs.GetUVsUInt16InterleavedJob {
                         inputByteStride = (inputByteStride>0) ? inputByteStride : 4,
@@ -151,7 +164,7 @@ namespace GLTFast {
                         outputByteStride = outputByteStride,
                         result = output
                     };
-                    jobHandle = jobUv.Schedule(count,GLTFast.DefaultBatchCount);
+                    jobHandle = jobUv.Schedule(count,GltfImport.DefaultBatchCount);
                 }
                 break;
             case GLTFComponentType.Short:
@@ -162,7 +175,7 @@ namespace GLTFast {
                         outputByteStride = outputByteStride,
                         result = output
                     };
-                    jobHandle = job.Schedule(count,GLTFast.DefaultBatchCount);
+                    jobHandle = job.Schedule(count,GltfImport.DefaultBatchCount);
                 } else {
                     var job = new Jobs.GetUVsInt16InterleavedJob {
                         inputByteStride = inputByteStride > 0 ? inputByteStride : 4,
@@ -170,7 +183,7 @@ namespace GLTFast {
                         outputByteStride = outputByteStride,
                         result = output
                     };
-                    jobHandle = job.Schedule(count,GLTFast.DefaultBatchCount);
+                    jobHandle = job.Schedule(count,GltfImport.DefaultBatchCount);
                 }
                 break;
             case GLTFComponentType.Byte:
@@ -182,7 +195,7 @@ namespace GLTFast {
                         outputByteStride = outputByteStride,
                         result = output
                     };
-                    jobHandle = jobInt8.Schedule(count,GLTFast.DefaultBatchCount);
+                    jobHandle = jobInt8.Schedule(count,GltfImport.DefaultBatchCount);
                 } else {
                     var jobInt8 = new Jobs.GetUVsInt8InterleavedJob {
                         inputByteStride = inputByteStride > 0 ? inputByteStride : 2,
@@ -190,11 +203,11 @@ namespace GLTFast {
                         outputByteStride = outputByteStride,
                         result = output
                     };
-                    jobHandle = jobInt8.Schedule(count,GLTFast.DefaultBatchCount);
+                    jobHandle = jobInt8.Schedule(count,GltfImport.DefaultBatchCount);
                 }
                 break;
             default:
-                Debug.LogErrorFormat( GLTFast.ErrorUnsupportedType, "UV", inputType);
+                logger?.Error(LogCode.TypeUnsupported, "UV", inputType.ToString());
                 break;
             }
             Profiler.EndSample();

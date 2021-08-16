@@ -30,6 +30,7 @@ namespace GLTFast
 #if BURST
     using Unity.Mathematics;
 #endif
+    using Jobs;
     using Schema;
 
     [System.Flags]
@@ -43,42 +44,6 @@ namespace GLTFast
         PosNormTan = 0x7,
     }
 
-    struct VertexInputData {
-
-        public Accessor accessor;
-        public BufferView bufferView;
-        public int chunkStart;
-        public byte[] buffer;
-
-        public int startOffset {
-            get { return accessor.byteOffset + bufferView.byteOffset + chunkStart; }
-        }
-
-        public int count {
-            get { return accessor.count; }
-        }
-
-        public int byteStride {
-            get { return bufferView.byteStride; }
-        }
-
-        public GLTFComponentType type {
-            get { return accessor.componentType; }
-        }
-
-        public GLTFAccessorAttributeType attributeType {
-            get { return accessor.typeEnum; }
-        }
-        
-        public Bounds? bounds {
-            get { return accessor.TryGetBounds(); }
-        }
-
-        public bool normalize {
-            get { return accessor.normalized; }
-        }
-    }
-
     abstract class VertexBufferConfigBase {
 
         public const Allocator defaultAllocator = Allocator.Persistent;
@@ -87,23 +52,29 @@ namespace GLTFast
         public bool calculateTangents = false;
 
         protected VertexAttributeDescriptor[] vad;
+        protected ICodeLogger logger;
 
         public Bounds? bounds { get; protected set; }
+
+        public VertexBufferConfigBase(ICodeLogger logger) {
+            this.logger = logger;
+        }
         
         public abstract unsafe JobHandle? ScheduleVertexJobs(
-            VertexInputData posInput,
-            VertexInputData? nrmInput = null,
-            VertexInputData? tanInput = null,
-            VertexInputData[] uvInputs = null,
-            VertexInputData? colorInput = null,
-            VertexInputData? weightsInput = null,
-            VertexInputData? jointsInput = null
+            IGltfBuffers buffers,
+            int positionAccessorIndex,
+            int normalAccessorIndex,
+            int tangentAccessorIndex,
+            int[] uvAccessorIndices,
+            int colorAccessorIndex,
+            int weightsAccessorIndex,
+            int jointsAccessorIndex
             );
         public abstract void ApplyOnMesh(UnityEngine.Mesh msh, MeshUpdateFlags flags = PrimitiveCreateContextBase.defaultMeshUpdateFlags);
         public abstract int vertexCount { get; }
         public abstract void Dispose();
 
-        protected unsafe JobHandle? GetVector3sJob(
+        public static unsafe JobHandle? GetVector3sJob(
             void* input,
             int count,
             GLTFComponentType inputType,
@@ -121,7 +92,7 @@ namespace GLTFast
                 job.input = (byte*)input;
                 job.outputByteStride = outputByteStride;
                 job.result = output;
-                jobHandle = job.Schedule(count,GLTFast.DefaultBatchCount);
+                jobHandle = job.Schedule(count,GltfImport.DefaultBatchCount);
             } else
             if(inputType == GLTFComponentType.UnsignedShort) {
                 if (normalized) {
@@ -130,14 +101,14 @@ namespace GLTFast
                     job.input = (byte*)input;
                     job.outputByteStride = outputByteStride;
                     job.result = output;
-                    jobHandle = job.Schedule(count,GLTFast.DefaultBatchCount);
+                    jobHandle = job.Schedule(count,GltfImport.DefaultBatchCount);
                 } else {
                     var job = new Jobs.GetUInt16PositionsInterleavedJob();
                     job.inputByteStride = (inputByteStride>0) ? inputByteStride : 6;
                     job.input = (byte*)input;
                     job.outputByteStride = outputByteStride;
                     job.result = output;
-                    jobHandle = job.Schedule(count,GLTFast.DefaultBatchCount);
+                    jobHandle = job.Schedule(count,GltfImport.DefaultBatchCount);
                 }
             } else
             if(inputType == GLTFComponentType.Short) {
@@ -148,14 +119,14 @@ namespace GLTFast
                     job.input = (byte*)input;
                     job.outputByteStride = outputByteStride;
                     job.result = output;
-                    jobHandle = job.Schedule(count,GLTFast.DefaultBatchCount);
+                    jobHandle = job.Schedule(count,GltfImport.DefaultBatchCount);
                 } else {
                     var job = new Jobs.GetVector3FromInt16InterleavedJob();
                     job.inputByteStride = (inputByteStride>0) ? inputByteStride : 6;
                     job.input = (byte*)input;
                     job.outputByteStride = outputByteStride;
                     job.result = output;
-                    jobHandle = job.Schedule(count,GLTFast.DefaultBatchCount);
+                    jobHandle = job.Schedule(count,GltfImport.DefaultBatchCount);
                 }
             } else
             if(inputType == GLTFComponentType.Byte) {
@@ -163,11 +134,11 @@ namespace GLTFast
                 if (normalized) {
                     var job = new Jobs.GetVector3FromSByteInterleavedNormalizedJob();
                     job.Setup((inputByteStride>0) ? inputByteStride : 3, (sbyte*)input,outputByteStride,output);
-                    jobHandle = job.Schedule(count,GLTFast.DefaultBatchCount);
+                    jobHandle = job.Schedule(count,GltfImport.DefaultBatchCount);
                 } else {
                     var job = new Jobs.GetVector3FromSByteInterleavedJob();
                     job.Setup((inputByteStride>0) ? inputByteStride : 3,(sbyte*)input,outputByteStride,output);
-                    jobHandle = job.Schedule(count,GLTFast.DefaultBatchCount);
+                    jobHandle = job.Schedule(count,GltfImport.DefaultBatchCount);
                 }
             } else
             if(inputType == GLTFComponentType.UnsignedByte) {
@@ -175,11 +146,11 @@ namespace GLTFast
                 if (normalized) {
                     var job = new Jobs.GetVector3FromByteInterleavedNormalizedJob();
                     job.Setup((inputByteStride>0) ? inputByteStride : 3,(byte*)input,outputByteStride,output);
-                    jobHandle = job.Schedule(count,GLTFast.DefaultBatchCount);
+                    jobHandle = job.Schedule(count,GltfImport.DefaultBatchCount);
                 } else {
                     var job = new Jobs.GetVector3FromByteInterleavedJob();
                     job.Setup((inputByteStride>0) ? inputByteStride : 3,(byte*)input,outputByteStride,output);
-                    jobHandle = job.Schedule(count,GLTFast.DefaultBatchCount);
+                    jobHandle = job.Schedule(count,GltfImport.DefaultBatchCount);
                 }
             } else {
                 Debug.LogError("Unknown componentType");
@@ -208,7 +179,7 @@ namespace GLTFast
                     jobTangentI.input = (byte*)input;
                     jobTangentI.outputByteStride = outputByteStride;
                     jobTangentI.result = output;
-                    jobHandle = jobTangentI.Schedule(count,GLTFast.DefaultBatchCount);
+                    jobHandle = jobTangentI.Schedule(count,GltfImport.DefaultBatchCount);
                     break;
                 case GLTFComponentType.Short:
                     var jobTangent = new Jobs.GetTangentsInt16NormalizedInterleavedJob();
@@ -217,7 +188,7 @@ namespace GLTFast
                     jobTangent.input = (System.Int16*)input;
                     jobTangent.outputByteStride = outputByteStride;
                     jobTangent.result = output;
-                    jobHandle = jobTangent.Schedule(count,GLTFast.DefaultBatchCount);
+                    jobHandle = jobTangent.Schedule(count,GltfImport.DefaultBatchCount);
                     break;
                 case GLTFComponentType.Byte:
                     var jobTangentByte = new Jobs.GetVector4sInt8NormalizedInterleavedJob();
@@ -226,14 +197,47 @@ namespace GLTFast
                     jobTangentByte.input = (sbyte*)input;
                     jobTangentByte.outputByteStride = outputByteStride;
                     jobTangentByte.result = output;
-                    jobHandle = jobTangentByte.Schedule(count,GLTFast.DefaultBatchCount);
+                    jobHandle = jobTangentByte.Schedule(count,GltfImport.DefaultBatchCount);
                     break;
                 default:
-                    Debug.LogErrorFormat( GLTFast.ErrorUnsupportedType, "Tangent", inputType);
+                    logger?.Error(LogCode.TypeUnsupported, "Tangent", inputType.ToString());
                     jobHandle = null;
                     break;
             }
 
+            Profiler.EndSample();
+            return jobHandle;
+        }
+
+        public static unsafe JobHandle? GetVector3sSparseJob(
+            void* indexBuffer,
+            void* valueBuffer,
+            int sparseCount,
+            GLTFComponentType indexType,
+            GLTFComponentType valueType,
+            Vector3* output,
+            int outputByteStride,
+            ref JobHandle? dependsOn,
+            bool normalized = false
+        ) {
+            JobHandle? jobHandle;
+
+            Profiler.BeginSample("GetVector3sSparseJob");
+            var job = new GetPositionsSparseJob {
+                indexBuffer = (ushort*)indexBuffer,
+                indexConverter = CachedFunction.GetIndexConverter(indexType),
+                inputByteStride = 3*Accessor.GetComponentTypeSize(valueType),
+                input = valueBuffer,
+                valueConverter = CachedFunction.GetPositionConverter(valueType,normalized),
+                outputByteStride = outputByteStride,
+                result = output,
+            };
+            
+            jobHandle = job.Schedule(
+                sparseCount,
+                GltfImport.DefaultBatchCount,
+                dependsOn: dependsOn.HasValue ? dependsOn.Value : default(JobHandle)
+                );
             Profiler.EndSample();
             return jobHandle;
         }

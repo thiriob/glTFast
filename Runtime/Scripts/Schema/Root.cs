@@ -37,10 +37,12 @@ namespace GLTFast.Schema {
         /// </summary>
         public Accessor[] accessors;
 
+#if UNITY_ANIMATION
         /// <summary>
         /// An array of keyframe animations.
         /// </summary>
-        //public List<Animation> Animations;
+        public GltfAnimation[] animations;
+#endif
 
         /// <summary>
         /// Metadata about the glTF asset.
@@ -61,7 +63,7 @@ namespace GLTFast.Schema {
         /// <summary>
         /// An array of cameras. A camera defines a projection matrix.
         /// </summary>
-        //public List<Camera> Cameras;
+        public Camera[] cameras;
 
         /// <summary>
         /// An array of images. An image defines data used to create a texture.
@@ -91,7 +93,7 @@ namespace GLTFast.Schema {
         /// <summary>
         /// The index of the default scene.
         /// </summary>
-        //public SceneId Scene;
+        public int scene = -1;
 
         /// <summary>
         /// An array of scenes.
@@ -108,11 +110,15 @@ namespace GLTFast.Schema {
         /// </summary>
         public Texture[] textures;
 
-		public bool IsAccessorInterleaved( int accessorIndex ) {
+#if UNITY_ANIMATION
+        public bool hasAnimation => animations != null && animations.Length > 0;
+#endif // UNITY_ANIMATION
+        
+        public bool IsAccessorInterleaved( int accessorIndex ) {
 			var accessor = accessors[accessorIndex];
 			var bufferView = bufferViews[accessor.bufferView];
 			if (bufferView.byteStride < 0) return false;
-			int elementSize = Accessor.GetAccessorAttriuteTypeLength(accessor.typeEnum) * Accessor.GetAccessorComponentTypeLength(accessor.componentType);
+			int elementSize = Accessor.GetAccessorAttributeTypeLength(accessor.typeEnum) * Accessor.GetAccessorComponentTypeLength(accessor.componentType);
 			return bufferView.byteStride > elementSize;
 		}
     }
