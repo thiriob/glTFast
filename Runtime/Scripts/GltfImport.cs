@@ -100,7 +100,7 @@ namespace GLTFast {
             BIN = 0x004e4942
         }
 
-        static IDeferAgent defaultDeferAgent;
+        IDeferAgent defaultDeferAgent;
         
         IDownloadProvider downloadProvider;
         IMaterialGenerator materialGenerator;
