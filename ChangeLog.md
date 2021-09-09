@@ -4,6 +4,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased] - 
+### Added
+- Multiple texture related import settings (thanks [@aurorahcx][aurorahcx] for #215)
+  - `generateMipMaps` (default is false)
+  - `defaultMinFilterMode` (minification; default is linear)
+  - `defaultMagFilterMode` (magnification; default is linear)
+  - `anisotropicFilterLevel` (default is 1)
+### Changed
+- `defaultMinFilterMode` was changed to `Linear` (from `NearestMipmapLinear`). This way textures will fall back to bilinear filtering (`FilterMode.Bilinear`) when it was not specified explicitly.
+- `GameObject` specifics were moved from `GltfAssetBase` into `GltfAsset` in preparation for ECS
+- Exposing glTFast assembly internals to glTF-test-framework
+### Fixed
+- Memory corruption when using unsigned byte positions or signed short UVs
+- Set `_METALLICGLOSSMAP` and `_OCCLUSION` keywords in material editor on texture import (thanks [@hybridherbst][hybridherbst] for #237)
+- Missing name on some textures
+- Incorrect rotations from signed byte quaternions
+- Incorrect UVs when using unsigned byte or signed/unsigned short texture coordinates
+- Incorrect values converting signed byte encoded tangents
+
+## [4.2.1] - 2021-08-26
+### Changed
+- Added Burst as dependency
+### Fixed
+- Improved handling corrupted glTF files (thanks [@zharry][zharry] for #230)
+- Loading [Ready Player Me][ReadyPlayerMe] avatars with unsupported node extension (`MOZ_hubs_components`) 
+- Loading glTF-binary files that have no buffers or an empty binary chunk (#227)
+- Crash and incorrect mesh clustering caused in `MeshPrimitive.Equals` (#224)
+- Compiler error when Burst is not installed (#222)
+
 ## [4.2.0] - 2021-07-16
 ### Added
 - Support for morph targets / blend shapes (#8)
@@ -403,5 +432,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [0.2.0]: https://github.com/atteneder/glTFast/compare/v0.2.0...v0.1.0
 [KtxUnity]: https://github.com/atteneder/KtxUnity
 [DracoUnity]: https://github.com/atteneder/DracoUnity
+[aurorahcx]: https://github.com/aurorahcx
 [hybridherbst]: https://github.com/hybridherbst
 [Bersaelor]: https://github.com/Bersaelor
+[zharry]: https://github.com/zharry
+[ReadyPlayerMe]: https://readyplayer.me

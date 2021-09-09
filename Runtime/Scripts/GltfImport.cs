@@ -527,7 +527,9 @@ namespace GLTFast {
                 } else {
                     success = await LoadGltf(download.text,url);
                 }
-                if(success) await LoadContent();
+                if(success) {
+                    success = await LoadContent();
+                }
                 success = success && await Prepare();
             } else {
                 logger?.Error(LogCode.Download,download.error,url.ToString());
@@ -539,23 +541,24 @@ namespace GLTFast {
             return success;
         }
 
-        async Task LoadContent() {
+        async Task<bool> LoadContent() {
 
-            await WaitForBufferDownloads();
+            var success = await WaitForBufferDownloads();
             downloadTasks?.Clear();
 
             if (textureDownloadTasks != null) {
-                await WaitForTextureDownloads();
+                success = success && await WaitForTextureDownloads();
                 textureDownloadTasks.Clear();
             }
             
 #if KTX_UNITY
             if (ktxDownloadTasks != null) {
-                await WaitForKtxDownloads();
+                success = success && await WaitForKtxDownloads();
                 ktxDownloadTasks.Clear();
             }
-
 #endif // KTX_UNITY
+
+            return success;
         }
 
         async Task<bool> ParseJsonAndLoadBuffers( string json, Uri baseUri ) {
@@ -579,7 +582,7 @@ namespace GLTFast {
                 return false;
             }
 
-            var bufferCount = gltfRoot.buffers.Length;
+            var bufferCount = gltfRoot.buffers?.Length ?? 0;
             if(bufferCount>0) {
                 buffers = new byte[bufferCount][];
                 bufferHandles = new GCHandle?[bufferCount];
@@ -808,7 +811,7 @@ namespace GLTFast {
             Profiler.EndSample();
         }
 
-        async Task WaitForBufferDownloads() {
+        async Task<bool> WaitForBufferDownloads() {
             if(downloadTasks!=null) {
                 foreach( var downloadPair in downloadTasks ) {
                     var download = await downloadPair.Value;
@@ -818,6 +821,7 @@ namespace GLTFast {
                         Profiler.EndSample();
                     } else {
                         logger?.Error(LogCode.BufferLoadFailed,download.error,downloadPair.Key.ToString());
+                        return false;
                     }
                 }
             }
@@ -834,9 +838,10 @@ namespace GLTFast {
                 }
                 Profiler.EndSample();
             }
+            return true;
         }
 
-        async Task WaitForTextureDownloads() {
+        async Task<bool> WaitForTextureDownloads() {
             foreach( var dl in textureDownloadTasks ) {
                 var www = await dl.Value;
                 
@@ -846,24 +851,27 @@ namespace GLTFast {
                     Texture2D txt;
                     // TODO: Loading Jpeg/PNG textures like this creates major frame stalls. Main thread is waiting
                     // on Render thread, which is occupied by Gfx.UploadTextureData for 19 ms for a 2k by 2k texture
-                    if(forceSampleLinear) {
+                    if(forceSampleLinear || settings.generateMipMaps) {
                         txt = CreateEmptyTexture(gltfRoot.images[imageIndex], imageIndex, forceSampleLinear);
                         // TODO: Investigate for NativeArray variant to avoid `www.data`
                         txt.LoadImage(www.data,!imageReadable[imageIndex]);
                     } else {
                         txt = www.texture;
+                        txt.name = GetImageName(gltfRoot.images[imageIndex], imageIndex);
                     }
                     images[imageIndex] = txt;
                     await deferAgent.BreakPoint();
                 } else {
                     logger?.Error(LogCode.TextureDownloadFailed,www.error,dl.Key.ToString());
+                    return false;
                 }
             }
+            return true;
         }
 
 
 #if KTX_UNITY
-        async Task WaitForKtxDownloads() {
+        async Task<bool> WaitForKtxDownloads() {
             foreach( var dl in ktxDownloadTasks ) {
                 var www = await dl.Value;
                 if(www.success) {
@@ -873,8 +881,10 @@ namespace GLTFast {
                     images[ktxContext.imageIndex] = textureResult.texture;
                 } else {
                     logger?.Error(LogCode.TextureDownloadFailed,www.error,dl.Key.ToString());
+                    return false;
                 }
             }
+            return true;
         }
 #endif // KTX_UNITY
 
@@ -1014,7 +1024,7 @@ namespace GLTFast {
                 return false;
             }
             
-            if(glbBinChunk.HasValue) {
+            if(glbBinChunk.HasValue && binChunks!=null) {
                 binChunks[0] = glbBinChunk.Value;
                 buffers[0] = bytes;
             }
@@ -1133,7 +1143,7 @@ namespace GLTFast {
                     var img = images[imageIndex];
                     if(imageVariants[imageIndex]==null) {
                         if(txt.sampler>=0) {
-                            gltfRoot.samplers[txt.sampler].Apply(img);
+                            gltfRoot.samplers[txt.sampler].Apply(img, settings.defaultMinFilterMode, settings.defaultMagFilterMode);
                         }
                         imageVariants[imageIndex] = new Dictionary<int, Texture2D>();
                         imageVariants[imageIndex][txt.sampler] = img;
@@ -1149,7 +1159,7 @@ namespace GLTFast {
                             logger?.Warning(LogCode.ImageMultipleSamplers,imageIndex.ToString());
 #endif
                             if(txt.sampler>=0) {
-                                gltfRoot.samplers[txt.sampler].Apply(newImg);
+                                gltfRoot.samplers[txt.sampler].Apply(newImg, settings.defaultMinFilterMode, settings.defaultMagFilterMode);
                             }
                             imageVariants[imageIndex][txt.sampler] = newImg;
                             textures[textureIndex] = newImg;
@@ -1311,10 +1321,12 @@ namespace GLTFast {
 #endif
 
             // Dispose all accessor data buffers, except the ones needed for instantiation
-            for (var index = 0; index < accessorData.Length; index++) {
-                if ((accessorUsage[index] & AccessorUsage.RequiredForInstantiation) == 0) {
-                    accessorData[index]?.Dispose();
-                    accessorData[index] = null;
+            if (accessorData != null) {
+                for (var index = 0; index < accessorData.Length; index++) {
+                    if ((accessorUsage[index] & AccessorUsage.RequiredForInstantiation) == 0) {
+                        accessorData[index]?.Dispose();
+                        accessorData[index] = null;
+                    }
                 }
             }
             return success;
@@ -1698,12 +1710,18 @@ namespace GLTFast {
         Texture2D CreateEmptyTexture(Schema.Image img, int index, bool forceSampleLinear) {
             Texture2D txt;
             if(forceSampleLinear) {
-                txt = new Texture2D(4,4,GraphicsFormat.R8G8B8A8_UNorm,TextureCreationFlags.MipChain);
+                TextureCreationFlags mipmapFlags = settings.generateMipMaps ? TextureCreationFlags.MipChain : TextureCreationFlags.None;
+                txt = new Texture2D(4, 4, GraphicsFormat.R8G8B8A8_UNorm, mipmapFlags);
             } else {
-                txt = new UnityEngine.Texture2D(4, 4);
+                txt = new Texture2D(4, 4, UnityEngine.TextureFormat.RGBA32, mipChain: settings.generateMipMaps);
             }
-            txt.name = string.IsNullOrEmpty(img.name) ? string.Format("image_{0}",index) : img.name;
+            txt.anisoLevel = settings.anisotropicFilterLevel;
+            txt.name = GetImageName(img, index);
             return txt;
+        }
+
+        static string GetImageName(Image img, int index) {
+            return string.IsNullOrEmpty(img.name) ? string.Format("image_{0}",index) : img.name;
         }
 
         private void SafeDestroy(UnityEngine.Object obj) {
@@ -2246,13 +2264,13 @@ namespace GLTFast {
             indices = new int[vertexCount+(lineLoop?1:0)];
             resultHandle = GCHandle.Alloc(indices, GCHandleType.Pinned);
             if(topology == MeshTopology.Triangles) {
-                var job8 = new Jobs.CreateIndicesFlippedJob();
+                var job8 = new Jobs.CreateIndicesInt32FlippedJob();
                 fixed( void* dst = &(indices[0]) ) {
                     job8.result = (int*)dst;
                 }
                 jobHandle = job8.Schedule(indices.Length,DefaultBatchCount);
             } else {
-                var job8 = new Jobs.CreateIndicesJob();
+                var job8 = new Jobs.CreateIndicesInt32Job();
                 if(lineLoop) {
                     // Set the last index to the first vertex
                     indices[vertexCount] = 0;
@@ -2292,14 +2310,14 @@ namespace GLTFast {
             switch( accessor.componentType ) {
             case GLTFComponentType.UnsignedByte:
                 if(flip) {
-                    var job8 = new Jobs.GetIndicesUInt8FlippedJob();
+                    var job8 = new Jobs.ConvertIndicesUInt8ToInt32FlippedJob();
                     fixed( void* src = &(buffer[start]), dst = &(indices[0]) ) {
                         job8.input = (byte*)src;
                         job8.result = (int*)dst;
                     }
                     jobHandle = job8.Schedule(accessor.count/3,DefaultBatchCount);
                 } else {
-                    var job8 = new Jobs.GetIndicesUInt8Job();
+                    var job8 = new Jobs.ConvertIndicesUInt8ToInt32Job();
                     fixed( void* src = &(buffer[start]), dst = &(indices[0]) ) {
                         job8.input = (byte*)src;
                         job8.result = (int*)dst;
@@ -2309,14 +2327,14 @@ namespace GLTFast {
                 break;
             case GLTFComponentType.UnsignedShort:
                 if(flip) {
-                    var job16 = new Jobs.GetIndicesUInt16FlippedJob();
+                    var job16 = new Jobs.ConvertIndicesUInt16ToInt32FlippedJob();
                     fixed( void* src = &(buffer[start]), dst = &(indices[0]) ) {
                         job16.input = (ushort*) src;
                         job16.result = (int*) dst;
                     }
                     jobHandle = job16.Schedule(accessor.count/3,DefaultBatchCount);
                 } else {
-                    var job16 = new Jobs.GetIndicesUInt16Job();
+                    var job16 = new Jobs.ConvertIndicesUInt16ToInt32Job();
                     fixed( void* src = &(buffer[start]), dst = &(indices[0]) ) {
                         job16.input = (ushort*) src;
                         job16.result = (int*) dst;
@@ -2326,14 +2344,14 @@ namespace GLTFast {
                 break;
             case GLTFComponentType.UnsignedInt:
                 if(flip) {
-                    var job32 = new Jobs.GetIndicesUInt32FlippedJob();
+                    var job32 = new Jobs.ConvertIndicesUInt32ToInt32FlippedJob();
                     fixed( void* src = &(buffer[start]), dst = &(indices[0]) ) {
                         job32.input = (uint*) src;
                         job32.result = (int*) dst;
                     }
                     jobHandle = job32.Schedule(accessor.count/3,DefaultBatchCount);
                 } else {
-                    var job32 = new Jobs.GetIndicesUInt32Job();
+                    var job32 = new Jobs.ConvertIndicesUInt32ToInt32Job();
                     fixed( void* src = &(buffer[start]), dst = &(indices[0]) ) {
                         job32.input = (uint*) src;
                         job32.result = (int*) dst;
@@ -2373,7 +2391,7 @@ namespace GLTFast {
             Profiler.BeginSample("CreateJob");
             switch( accessor.componentType ) {
             case GLTFComponentType.Float:
-                var job32 = new Jobs.GetMatricesJob();
+                var job32 = new Jobs.ConvertMatricesJob();
                 job32.result = matrices;
                 fixed( void* src = &(buffer[start]) ) {
                     job32.input = (Matrix4x4*) src;
@@ -2410,7 +2428,7 @@ namespace GLTFast {
             Profiler.BeginSample("CreateJob");
             switch( accessor.componentType ) {
             case GLTFComponentType.Float when flip: {
-                var job = new GetVector3sJob { result = (float*)vectors.GetUnsafePtr() };
+                var job = new ConvertVector3FloatToFloatJob { result = (float*)vectors.GetUnsafePtr() };
                 fixed( void* src = &(buffer[start]) ) {
                     job.input = (float*) src;
                 }
@@ -2459,7 +2477,7 @@ namespace GLTFast {
             Profiler.BeginSample("CreateJob");
             switch( accessor.componentType ) {
             case GLTFComponentType.Float: {
-                var job = new GetRotationsFloatJob {
+                var job = new ConvertRotationsFloatToFloatJob {
                     result = (float*)vectors.GetUnsafePtr()
                 };
                 fixed( void* src = &(buffer[start]) ) {
@@ -2469,7 +2487,7 @@ namespace GLTFast {
                 break;
             }
             case GLTFComponentType.Short: {
-                var job = new GetRotationsInt16Job {
+                var job = new ConvertRotationsInt16ToFloatJob {
                     result = (float*)vectors.GetUnsafePtr()
                 };
                 fixed( void* src = &(buffer[start]) ) {
@@ -2479,11 +2497,11 @@ namespace GLTFast {
                 break;
             }
             case GLTFComponentType.Byte: {
-                var job = new GetRotationsInt8Job {
+                var job = new ConvertRotationsInt8ToFloatJob {
                     result = (float*)vectors.GetUnsafePtr()
                 };
                 fixed( void* src = &(buffer[start]) ) {
-                    job.input = (byte*) src;
+                    job.input = (sbyte*) src;
                 }
                 jobHandle = job.Schedule(accessor.count,DefaultBatchCount);
                 break;
@@ -2527,7 +2545,7 @@ namespace GLTFast {
                 
                 switch( accessor.componentType ) {
                     case GLTFComponentType.Byte: {
-                        var job = new GetScalarInt8NormalizedJob {
+                        var job = new ConvertScalarInt8ToFloatNormalizedJob {
                             input = (sbyte*)buffer.GetUnsafeReadOnlyPtr() + accessor.byteOffset,
                             result = scalars.Value
                         };
@@ -2535,7 +2553,7 @@ namespace GLTFast {
                         break;
                     }
                     case GLTFComponentType.UnsignedByte: {
-                        var job = new GetScalarUInt8NormalizedJob {
+                        var job = new ConvertScalarUInt8ToFloatNormalizedJob {
                             input = (byte*)buffer.GetUnsafeReadOnlyPtr() + accessor.byteOffset,
                             result = scalars.Value
                         };
@@ -2543,7 +2561,7 @@ namespace GLTFast {
                         break;
                     }
                     case GLTFComponentType.Short: {
-                        var job = new GetScalarInt16NormalizedJob {
+                        var job = new ConvertScalarInt16ToFloatNormalizedJob {
                             input = (short*) ((byte*)buffer.GetUnsafeReadOnlyPtr() + accessor.byteOffset),
                             result = scalars.Value
                         };
@@ -2551,7 +2569,7 @@ namespace GLTFast {
                         break;
                     }
                     case GLTFComponentType.UnsignedShort: {
-                        var job = new GetScalarUInt16NormalizedJob {
+                        var job = new ConvertScalarUInt16ToFloatNormalizedJob {
                             input = (ushort*) ((byte*)buffer.GetUnsafeReadOnlyPtr() + accessor.byteOffset),
                             result = scalars.Value
                         };
