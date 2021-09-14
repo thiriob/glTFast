@@ -22,6 +22,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Linq;
 using System.Runtime.CompilerServices;
 using UnityEngine;
 using UnityEngine.Assertions;
@@ -2661,6 +2662,11 @@ namespace GLTFast {
                 default:
                     return ImageFormat.Unknown;
             }
+        }
+
+        public List<Node> GetNodes()
+        {
+            return gltfRoot.nodes.ToList();
         }
     }
 }
