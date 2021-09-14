@@ -64,6 +64,8 @@ namespace GLTFast.Schema {
         /// </summary>
         public int camera = -1;
 
+        public Extras extras;
+
         public NodeExtensions extensions;
     }
     
