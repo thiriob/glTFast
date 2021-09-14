@@ -1,4 +1,4 @@
-namespace GLTFast.Schema {
+namespace GLTFast.Schema
 {
     [System.Serializable]
     public class Extras
