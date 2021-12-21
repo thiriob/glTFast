@@ -104,6 +104,10 @@ namespace GLTFast
             }
             
             if (uvAccessorIndices!=null && uvAccessorIndices.Length>0) {
+                
+                // More than two UV sets are not supported yet
+                Assert.IsTrue(uvAccessorIndices.Length<3);
+                
                 jobCount += uvAccessorIndices.Length;
                 switch (uvAccessorIndices.Length) {
                     case 1:
@@ -133,11 +137,6 @@ namespace GLTFast
             {
                 JobHandle? h = null;
                 if(posAcc.bufferView>=0) {
-#if DEBUG
-                    if (posAcc.normalized) {
-                        Debug.LogError("Normalized Positions will likely produce incorrect results. Please report this error at https://github.com/atteneder/glTFast/issues/new?assignees=&labels=bug&template=bug_report.md&title=Normalized%20Positions");
-                    }
-#endif
                     h = GetVector3sJob(
                         posData,
                         posAcc.count,
@@ -145,7 +144,8 @@ namespace GLTFast
                         posByteStride,
                         (float3*) vDataPtr,
                         outputByteStride,
-                        posAcc.normalized
+                        posAcc.normalized,
+                        false // positional data never needs to be normalized
                     );
                 }
                 if (posAcc.isSparse) {
@@ -191,7 +191,8 @@ namespace GLTFast
                     inputByteStride,
                     (float3*) (vDataPtr+12),
                     outputByteStride,
-                    nrmAcc.normalized
+                    nrmAcc.normalized,
+                    true // normals need to be unit length
                 );
                 if (h.HasValue) {
                     handles[handleIndex] = h.Value;
@@ -236,7 +237,7 @@ namespace GLTFast
                         uvAccessorIndices.Length
                         )
                     );
-                handleIndex++;
+                handleIndex += uvAccessorIndices.Length;
             }
             
             if (hasColors) {

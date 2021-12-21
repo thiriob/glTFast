@@ -1,14 +1,16 @@
 {
     "name": "glTFast",
+    "rootNamespace": "",
     "references": [
-        "Draco",
         "glTFastSchema",
         "glTFastFakeSchema",
-        "Ktx",
         "Unity.Mathematics",
         "Unity.Burst",
         "Unity.Collections",
         "Unity.Jobs",
+        "Draco",
+        "Ktx",
+        "Unity.Meshopt.Decompress",
         "Unity.RenderPipelines.Universal.Runtime",
         "Unity.RenderPipelines.HighDefinition.Runtime"
     ],
@@ -41,6 +43,11 @@
             "define": "USING_HDRP"
         },
         {
+            "name": "com.unity.render-pipelines.high-definition",
+            "expression": "10.0.0",
+            "define": "USING_HDRP_10_OR_NEWER"
+        },
+        {
             "name": "com.unity.modules.physics",
             "expression": "1.0.0",
             "define": "UNITY_PHYSICS"
@@ -54,6 +61,11 @@
             "name": "com.unity.jobs",
             "expression": "0.2.0",
             "define": "UNITY_JOBS"
+        },
+        {
+            "name": "com.unity.meshopt.decompress",
+            "expression": "",
+            "define": "MESHOPT"
         }
     ],
     "noEngineReferences": false

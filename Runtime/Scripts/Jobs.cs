@@ -921,7 +921,7 @@ namespace GLTFast.Jobs {
     }
 
     [BurstCompile]
-    public unsafe struct ConvertColorsInterleavedRGBAUInt16ToRGBAFloatJob : 
+    public unsafe struct ConvertColorsRGBAUInt16ToRGBAFloatJob : 
 #if UNITY_JOBS
         IJobParallelForBatch
 #else
@@ -964,6 +964,43 @@ namespace GLTFast.Jobs {
                 src[2] / (float)ushort.MaxValue,
                 src[3] / (float)ushort.MaxValue
             );
+        }
+#endif
+    }
+
+    [BurstCompile]
+    public unsafe struct ConvertColorsRGBAFloatToRGBAFloatJob : 
+#if UNITY_JOBS
+        IJobParallelForBatch
+#else
+        IJobParallelFor
+#endif
+        {
+
+        [ReadOnly]
+        public int inputByteStride;
+
+        [ReadOnly]
+        [NativeDisableUnsafePtrRestriction]
+        public byte* input;
+
+        [WriteOnly]
+        [NativeDisableUnsafePtrRestriction]
+        public float4* result;
+
+#if UNITY_JOBS
+        public void Execute(int i, int count) {
+            var src = (float4*)(input + i*inputByteStride);
+            var endIndex = i + count;
+            for (var x = i; x < endIndex; x++) {
+                result[x] = *src;
+                src = (float4*)((byte*)src + inputByteStride);
+            }
+        }
+#else
+        public void Execute(int i) {
+            var src = (float4*) (input + (i * inputByteStride));
+            result[i] = *src;
         }
 #endif
     }
@@ -1318,6 +1355,112 @@ namespace GLTFast.Jobs {
     }
 
     [BurstCompile]
+    public unsafe struct ConvertBoneWeightsUInt8ToFloatInterleavedJob : 
+#if UNITY_JOBS
+        IJobParallelForBatch
+#else
+        IJobParallelFor
+#endif
+    {
+
+        [ReadOnly]
+        public int inputByteStride;
+
+        [ReadOnly]
+        [NativeDisableUnsafePtrRestriction]
+        public byte* input;
+
+        [ReadOnly]
+        public int outputByteStride;
+
+        [ReadOnly]
+        [NativeDisableUnsafePtrRestriction]
+        public float4* result;
+
+#if UNITY_JOBS
+        public void Execute(int i, int count) {
+            var resultV = (float4*) ((byte*)result + i*outputByteStride);
+            var off = input + i*inputByteStride;
+            
+            for (var x = 0; x < count; x++) {
+                *resultV = new float4(
+                    off[0] / 255f,
+                    off[1] / 255f,
+                    off[2] / 255f,
+                    off[3] / 255f
+                    );
+                resultV = (float4*)((byte*)resultV + outputByteStride);
+                off += inputByteStride;
+            }
+        }
+#else
+        public void Execute(int i) {
+            var resultV = (float4*) (((byte*)result) + (i*outputByteStride));
+            var off = input + (i*inputByteStride);
+            *resultV = new float4(
+                off[0] / 255f,
+                off[1] / 255f,
+                off[2] / 255f,
+                off[3] / 255f
+                );
+        }
+#endif
+    }
+
+    [BurstCompile]
+    public unsafe struct ConvertBoneWeightsUInt16ToFloatInterleavedJob : 
+#if UNITY_JOBS
+        IJobParallelForBatch
+#else
+        IJobParallelFor
+#endif
+    {
+
+        [ReadOnly]
+        public int inputByteStride;
+
+        [ReadOnly]
+        [NativeDisableUnsafePtrRestriction]
+        public byte* input;
+
+        [ReadOnly]
+        public int outputByteStride;
+
+        [ReadOnly]
+        [NativeDisableUnsafePtrRestriction]
+        public float4* result;
+
+#if UNITY_JOBS
+        public void Execute(int i, int count) {
+            var resultV = (float4*) ((byte*)result + i*outputByteStride);
+            var off = (ushort*) input + i*inputByteStride;
+            
+            for (var x = 0; x < count; x++) {
+                *resultV = new float4(
+                    off[0] / (float) ushort.MaxValue,
+                    off[1] / (float) ushort.MaxValue,
+                    off[2] / (float) ushort.MaxValue,
+                    off[3] / (float) ushort.MaxValue
+                    );
+                resultV = (float4*)((byte*)resultV + outputByteStride);
+                off = (ushort*) ((byte*)off + inputByteStride);
+            }
+        }
+#else
+        public void Execute(int i) {
+            var resultV = (float4*) (((byte*)result) + (i*outputByteStride));
+            var off = (ushort*) input + i*inputByteStride;
+            *resultV = new float4(
+                off[0] / (float) ushort.MaxValue,
+                off[1] / (float) ushort.MaxValue,
+                off[2] / (float) ushort.MaxValue,
+                off[3] / (float) ushort.MaxValue
+                );
+        }
+#endif
+    }
+
+    [BurstCompile]
     public unsafe struct ConvertTangentsInt16ToFloatInterleavedNormalizedJob : 
 #if UNITY_JOBS
         IJobParallelForBatch
@@ -1461,7 +1604,7 @@ namespace GLTFast.Jobs {
     }
 
     [BurstCompile]
-    public unsafe struct ConvertNormalsUInt16ToFloatInterleavedNormalizedJob : 
+    public unsafe struct ConvertPositionsUInt16ToFloatInterleavedNormalizedJob : 
 #if UNITY_JOBS
         IJobParallelForBatch
 #else
@@ -1493,7 +1636,7 @@ namespace GLTFast.Jobs {
                     off[1] / (float) ushort.MaxValue,
                     off[2] / (float) ushort.MaxValue
                 );
-                *resultV = normalize(tmp);
+                *resultV = tmp;
                 resultV = (float3*)((byte*)resultV + outputByteStride);
                 off = (ushort*)((byte*)off + inputByteStride);
             }
@@ -1502,12 +1645,11 @@ namespace GLTFast.Jobs {
         public void Execute(int i) {
             var resultV = (float3*) (((byte*)result) + (i*outputByteStride));
             var off = (ushort*) (input + (inputByteStride*i));
-            var tmp = new float3(
+            *resultV = new float3(
                 -(off[0] / (float) ushort.MaxValue),
                 off[1] / (float) ushort.MaxValue,
                 off[2] / (float) ushort.MaxValue
             );
-            *resultV = normalize(tmp);
         }
 #endif
     }
@@ -1556,6 +1698,65 @@ namespace GLTFast.Jobs {
 #endif
     }
 
+    /// <summary>
+    /// General purpose (position / morph target delta normal)
+    /// Result is not normalized (scaled to unit length)
+    /// </summary>
+    [BurstCompile]
+    public unsafe struct ConvertVector3Int16ToFloatInterleavedNormalizedJob : 
+#if UNITY_JOBS
+        IJobParallelForBatch
+#else
+        IJobParallelFor
+#endif
+    {
+
+        [ReadOnly]
+        public int inputByteStride;
+
+        [ReadOnly]
+        [NativeDisableUnsafePtrRestriction]
+        public byte* input;
+
+        [ReadOnly]
+        public int outputByteStride;
+
+        [ReadOnly]
+        [NativeDisableUnsafePtrRestriction]
+        public float3* result;
+
+#if UNITY_JOBS
+        public void Execute(int i, int count) {
+            var resultV = (float3*) ((byte*)result + i*outputByteStride);
+            var off = (short*) (input + i*inputByteStride);
+            
+            for (var x = 0; x < count; x++) {
+                var tmp = new float3(off[0], off[1], off[2]) / short.MaxValue;
+                var tmp2 = max(tmp, -1f);
+                tmp2.x *= -1;
+                *resultV = tmp2;
+                
+                resultV = (float3*)((byte*)resultV + outputByteStride);
+                off = (short*)((byte*)off + inputByteStride);
+            }
+        }
+#else
+        public void Execute(int i) {
+            var resultV = (float3*) (((byte*)result) + (i*outputByteStride));
+            var off = (short*) (input + (i*inputByteStride));
+
+            var tmp = new float3(off[0], off[1], off[2]) / short.MaxValue;
+            var tmp2 = max(tmp, -1f);
+            tmp2.x *= -1;
+            *resultV = tmp2;
+        }
+#endif
+    }
+
+    /// <summary>
+    /// Normal conversion
+    /// Result is normalized (scaled to unit length)
+    /// </summary>
     [BurstCompile]
     public unsafe struct ConvertNormalsInt16ToFloatInterleavedNormalizedJob : 
 #if UNITY_JOBS
@@ -1650,6 +1851,65 @@ namespace GLTFast.Jobs {
 #endif
     }
 
+    /// <summary>
+    /// General purpose conversion (positions or morph target delta normals)
+    /// Result is not normalized (scaled to unit length)
+    /// </summary>
+    [BurstCompile]
+    public unsafe struct ConvertVector3Int8ToFloatInterleavedNormalizedJob : 
+#if UNITY_JOBS
+        IJobParallelForBatch
+#else
+        IJobParallelFor
+#endif
+    {
+
+        [ReadOnly]
+        public int inputByteStride;
+
+        [ReadOnly]
+        [NativeDisableUnsafePtrRestriction]
+        public sbyte* input;
+
+        [ReadOnly]
+        public int outputByteStride;
+
+        [ReadOnly]
+        [NativeDisableUnsafePtrRestriction]
+        public float3* result;
+
+#if UNITY_JOBS
+        public void Execute(int i, int count) {
+            var resultV = (float3*) ((byte*)result + i*outputByteStride);
+            var off = input + i*inputByteStride;
+            
+            for (var x = 0; x < count; x++) {
+                var tmp = new float3(off[0], off[1], off[2]) / 127f;
+                var tmp2 = max(tmp, -1);
+                tmp2.x *= -1;
+                *resultV = tmp2;
+                
+                resultV = (float3*)((byte*)resultV + outputByteStride);
+                off += inputByteStride;
+            }
+        }
+#else
+        public void Execute(int i) {
+            var resultV = (float3*) (((byte*)result) + (i*outputByteStride));
+            var off = input + (inputByteStride*i);
+
+            var tmp = new float3(off[0], off[1], off[2]) / 127f;
+            var tmp2 = max(tmp, -1);
+            tmp2.x *= -1;
+            *resultV = tmp2;
+        }
+#endif
+    }
+
+    /// <summary>
+    /// Normal conversion
+    /// Result is normalized (scaled to unit length)
+    /// </summary>
     [BurstCompile]
     public unsafe struct ConvertNormalsInt8ToFloatInterleavedNormalizedJob : 
 #if UNITY_JOBS
@@ -1745,7 +2005,7 @@ namespace GLTFast.Jobs {
     }
 
     [BurstCompile]
-    public unsafe struct ConvertNormalsUInt8ToFloatInterleavedNormalizedJob : 
+    public unsafe struct ConvertPositionsUInt8ToFloatInterleavedNormalizedJob : 
 #if UNITY_JOBS
         IJobParallelForBatch
 #else
@@ -1773,12 +2033,11 @@ namespace GLTFast.Jobs {
             var off = input + i*inputByteStride;
             
             for (var x = 0; x < count; x++) {
-                var tmp = new float3(
+                *resultV = new float3(
                     -(off[0] / 255f),
                     off[1] / 255f,
                     off[2] / 255f
                 );
-                *resultV = normalize(tmp);
                 resultV = (float3*)((byte*)resultV + outputByteStride);
                 off += inputByteStride;
             }
@@ -1787,12 +2046,11 @@ namespace GLTFast.Jobs {
         public void Execute(int i) {
             var resultV = (float3*) (((byte*)result) + (i*outputByteStride));
             var off = input + (i*inputByteStride);
-            var tmp = new float3(
+            *resultV = new float3(
                 -(off[0] / 255f),
                 off[1] / 255f,
                 off[2] / 255f
             );
-            *resultV = normalize(tmp);
         }
 #endif
     }

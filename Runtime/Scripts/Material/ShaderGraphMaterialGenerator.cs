@@ -92,7 +92,7 @@ namespace GLTFast.Materials {
         protected static readonly int transmissionTextureScaleTransformPropId = Shader.PropertyToID("_TransmittanceColorMap_ST");
         protected static readonly int transmissionTextureRotationPropId = Shader.PropertyToID("_TransmittanceColorMapRotation");
         protected static readonly int transmissionTextureUVChannelPropId = Shader.PropertyToID("_TransmittanceColorMapUVChannel");
-
+        
         static Dictionary<MetallicShaderFeatures,Shader> metallicShaders = new Dictionary<MetallicShaderFeatures,Shader>();
         static Dictionary<SpecularShaderFeatures,Shader> specularShaders = new Dictionary<SpecularShaderFeatures,Shader>();
         static Dictionary<UnlitShaderFeatures,Shader> unlitShaders = new Dictionary<UnlitShaderFeatures,Shader>();
@@ -107,6 +107,10 @@ namespace GLTFast.Materials {
             
             if(!metallicShaders.TryGetValue(metallicShaderFeatures,value: out var shader)) {
                 ShaderMode mode = (ShaderMode) (metallicShaderFeatures & MetallicShaderFeatures.ModeMask);
+#if USING_HDRP_10_OR_NEWER
+                mode = ShaderMode.Opaque;
+                doubleSided = false;
+#endif
                 // TODO: add ClearCoat support
                 bool coat = false; // (metallicShaderFeatures & MetallicShaderFeatures.ClearCoat) != 0;
                 // TODO: add sheen support
@@ -304,7 +308,7 @@ namespace GLTFast.Materials {
                 bumpMapRotationPropId,
                 bumpMapUVChannelPropId
                 )) {
-                // material.EnableKeyword(KW_NORMALMAP);
+                // material.EnableKeyword(Constants.kwNormalMap);
                 material.SetFloat(bumpScalePropId,gltfMaterial.normalTexture.scale);
             }
             
@@ -343,7 +347,7 @@ namespace GLTFast.Materials {
             }
 
             if (gltfMaterial.alphaModeEnum == AlphaMode.MASK) {
-                material.SetFloat(cutoffPropId, gltfMaterial.alphaCutoff);
+                SetAlphaModeMask(gltfMaterial, material);
             } else {
                 material.SetFloat(cutoffPropId, 0);
                 // double sided opaque would make errors in HDRP 7.3 otherwise
@@ -362,6 +366,22 @@ namespace GLTFast.Materials {
 
             material.renderQueue = (int) renderQueue.Value;
 
+            if (gltfMaterial.doubleSided) {
+                SetDoubleSided(gltfMaterial, material);
+            }
+
+            switch (shaderMode) {
+                case ShaderMode.Opaque:
+                    SetShaderModeOpaque(gltfMaterial, material);
+                    break;
+                case ShaderMode.Blend:
+                    SetShaderModeBlend(gltfMaterial, material);
+                    break;
+                case ShaderMode.Premultiply:
+                    SetShaderModePremultiply(gltfMaterial, material);
+                    break;
+            }
+
             material.SetVector(baseColorPropId, baseColorLinear);
             
             if(gltfMaterial.emissive != Color.black) {
@@ -371,6 +391,16 @@ namespace GLTFast.Materials {
 
             return material;
         }
+
+        protected virtual void SetDoubleSided(Schema.Material gltfMaterial, Material material) { }
+        
+        protected virtual void SetAlphaModeMask(Schema.Material gltfMaterial, Material material) {
+            material.SetFloat(cutoffPropId, gltfMaterial.alphaCutoff);
+        }
+
+        protected virtual void SetShaderModeOpaque(Schema.Material gltfMaterial, Material material) { }
+        protected virtual void SetShaderModeBlend(Schema.Material gltfMaterial, Material material) { }
+        protected virtual void SetShaderModePremultiply(Schema.Material gltfMaterial, Material material) { }
 
         protected virtual RenderQueue? ApplyTransmission(
             ref Color baseColorLinear,
@@ -382,7 +412,7 @@ namespace GLTFast.Materials {
         {
 #if UNITY_EDITOR
             // ReSharper disable once Unity.PerformanceCriticalCodeInvocation
-            logger.Warning(LogCode.MaterialTransmissionApproxURP);
+            logger?.Warning(LogCode.MaterialTransmissionApproxURP);
 #endif
             // Correct transmission is not supported in Built-In renderer
             // This is an approximation for some corner cases
@@ -415,7 +445,7 @@ namespace GLTFast.Materials {
             if (gltfMaterial.doubleSided) feature |= MetallicShaderFeatures.DoubleSided;
 
             if (!sm.HasValue) {
-                sm = gltfMaterial.alphaModeEnum != AlphaMode.OPAQUE ? ShaderMode.Blend : ShaderMode.Opaque;
+                sm = gltfMaterial.alphaModeEnum == AlphaMode.BLEND ? ShaderMode.Blend : ShaderMode.Opaque;
             } 
             
             feature |= (MetallicShaderFeatures)sm;

@@ -13,8 +13,11 @@
 // limitations under the License.
 //
 
+#if !GLTFAST_EDITOR_IMPORT_OFF
+
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEditor;
 #if UNITY_2020_2_OR_NEWER
 using UnityEditor.AssetImporters;
@@ -22,6 +25,7 @@ using UnityEditor.AssetImporters;
 using UnityEditor.Experimental.AssetImporters;
 #endif
 using UnityEngine;
+using UnityEngine.Rendering;
 using Object = UnityEngine.Object;
 
 namespace GLTFast.Editor {
@@ -29,6 +33,9 @@ namespace GLTFast.Editor {
     [ScriptedImporter(1,new [] {"gltf","glb"})] 
     public class GltfImporter : ScriptedImporter {
 
+        [SerializeField]
+        EditorImportSettings editorImportSettings;
+        
         [SerializeField]
         ImportSettings importSettings;
         
@@ -66,8 +73,13 @@ namespace GLTFast.Editor {
                 logger
                 );
 
-            if (importSettings == null) {
+            if (editorImportSettings == null) {
                 // Design-time import specific settings
+                editorImportSettings = new EditorImportSettings();
+            }
+            
+            if (importSettings == null) {
+                // Design-time import specific changes to default settings
                 importSettings = new ImportSettings {
                     // Avoid naming conflicts by default
                     nodeNameMethod = ImportSettings.NameImportMethod.OriginalUnique
@@ -121,6 +133,9 @@ namespace GLTFast.Editor {
                 var meshes = m_Gltf.GetMeshes();
                 if (meshes != null) {
                     foreach (var mesh in meshes) {
+                        if (editorImportSettings.generateSecondaryUVSet && !HasSecondaryUVs(mesh)) {
+                            Unwrapping.GenerateSecondaryUVSet(mesh);
+                        }
                         AddObjectToAsset(ctx, $"meshes/{mesh.name}", mesh);
                     }
                 }
@@ -176,7 +191,9 @@ namespace GLTFast.Editor {
             assetDependencies = deps.ToArray();
 
             var reportItemList = new List<LogItem>();
-            reportItemList.AddRange(logger.items);
+            if (logger.items != null) {
+                reportItemList.AddRange(logger.items);
+            }
             if (instantiationLogger?.items != null) {
                 reportItemList.AddRange(instantiationLogger.items);
             }
@@ -207,5 +224,12 @@ namespace GLTFast.Editor {
             }
             return originalName;
         }
+
+        static bool HasSecondaryUVs(Mesh mesh) {
+            var attributes = mesh.GetVertexAttributes();
+            return attributes.Any(attribute => attribute.attribute == VertexAttribute.TexCoord1);
+        }
     }
 }
+
+#endif // !GLTFAST_EDITOR_IMPORT_OFF

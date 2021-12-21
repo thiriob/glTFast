@@ -18,7 +18,14 @@ namespace GLTFast.Schema {
     [System.Serializable]
     public class Skin : RootChild {
         public int inverseBindMatrices;
-        public int skeleton;
+        public int skeleton = -1;
         public uint[] joints;
+        
+        public void GltfSerialize(JsonWriter writer) {
+            writer.AddObject();
+            GltfSerializeRoot(writer);
+            writer.Close();
+            throw new System.NotImplementedException($"GltfSerialize missing on {GetType()}");
+        }
     }
 }

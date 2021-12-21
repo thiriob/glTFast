@@ -4,7 +4,98 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [4.4.9] - 2021-12-20
+### Fixed
+- (URP/HDRP) Materials with `alphaMode` `MASK` are alpha tested (and not blended as well) as specified in the specification (thanks [rt-nikowiss][rt-nikowiss] for #296)
+
+## [4.4.8] - 2021-12-06
+### Fixed
+- Morph target animation curves have correct first keyframe value now (thanks [Eric Beets][EricBeetsOfficial-Opuscope] for #277)
+- (URH/HDRP) UV transform and UV channel on blended materials
+- Error when using transmission approximation without a logger provided
+- `ConsoleLogger` non-`LogCode` messages have the correct log level now
+- Correct blending on URP 12 / HDRP 10 alpha blended materials
+
+## [4.4.7] - 2021-11-12
+### Changed
+- (HDRP): Configuring materials via settings and shader keywords instead of using duplicated shader graphs. This reduces the total shader variant count.
+### Fixed
+- Correct blend mode for transmission in URP
+- Correct transparency on HDRP >= 10.x (Unity 2020.3 and newer)
+- (URP/HDRP) Using the second UV set on double-sided materials
+- (URP/HDRP) Corrected baseColorTexture UV transform on double-sided materials
+
+## [4.4.6] - 2021-11-10
+### Added
+- Added warning when more than two UV sets are supposed to be imported (not supported yet)
+### Changed
+- Major performance improvement when loading glTFs with many KTX textures
+### Fixed
+- Correct import of interleaved float RGBA vertex colors (thanks [@mikejurka][mikejurka] for #266)
+- Corrected potential pitfall by incorrect UV import job handling (thanks [@mikejurka][mikejurka] for reporting)
+- (Export) Exception due to incorrect property ID usage
+- JSON parse tests
+- Added missing Job variant for users of the Jobs package
+- `GltfBoundsAsset` now has correct `sceneInstance` and `currentSceneId` properties
+- Documentation: Fixed and improved export via script section (#270)
+- Removed precausious error message after testing real world example (#268)
+
+## [4.4.5] - 2021-11-01
+### Fixed
+- Error when animation package is not enabled (#267)
+
+## [4.4.4] - 2021-10-28
+### Fixed 
+- Build compiler error about missing variable (#265)
+
+## [4.4.3] - 2021-10-27
+### Fixed 
+- Release build only compiler errors
+
+## [4.4.2] - 2021-10-27
+### Fixed
+- Offset of accessor into buffer was incorrect for some scalar accessors (#262)
+
+## [4.4.1] - 2021-10-27
+### Fixed
+- .NET 4.6 compiler issue (#261)
+
+## [4.4.0] - 2021-10-27
+### Added
+- Experimental glTF Editor Export (under main menu `File > Export` and via API `GLTFast.Export.GameObjectExport`; #249)
+- Support for meshopt compressed glTFs (EXT_meshopt_compression; #106)
+- *Generate Lightmap UVs* option in the glTF import inspector lets you create a secondary texture coordinate set (similar to the Model Import Settings from other formats; #238)
+- Generic `ICodeLogger` methods that don't require a `LogCode`
+### Changed
+- Raised required Unity version to 2019.4.7f1 (fixes Burst 1.4 compiler issue #252). If you're on 2019.x, make sure to update to the latest LTS release!
+- Less GC due to `CollectingLogger` creating the item list on demand 
+
+## [4.3.4] - 2021-10-26
+### Added
+- Option to turn off Editor import by adding `GLTFAST_EDITOR_IMPORT_OFF` to the project's *Scripting Define Symbols* in the *Player Settings* (#256)  
+### Fixed
+- Import of glTFs with no meshes (#257)
+
+## [4.3.3] - 2021-10-15 
+### Fixed
+- Corrected mesh bounds (calculated from accessor's min/max)
+- No errors when importing empty scenes
+- Removed redundant code
+
+## [4.3.2] - 2021-10-13
+### Added
+- Completed quantization by supporting UInt8/UInt16 skin bone weights
+### Changes
+- If `skin.skeleton` is properly set, `SkinnedMeshRendererRoot`'s root bone property will be assigned accordingly
+- Major animation loading performance improvements by inlining and optimizing hot for-loops
+### Fixed
+- Animation sampler properly defaults to `LINEAR` interpolation in case it is not specified
+- Correct `LINEAR` animation interpolation due to fixing tangent calculation
+- Correct `LINEAR` animation interpolation on (quaternion) rotations by ensuring shortest path (#250, #251)
+- Unlit built-in render pipeline materials have correct texture transform again 
+- Correct quantized morph target shading by fixing (not normalizing) delta normals and delta tangents
+
+## [4.3.1] - 2021-09-14
 ### Changed
 - Point clouds (POINTS primitive mode) are approved now - removed error log
 ### Fixed
@@ -126,7 +217,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `GameObjectBoundsInstantiator` correctly calculates bounds for scenes that contain multi-primitive meshes (fixes #173)
 - Corrected linear/gamma sampling whenever texture index does not equal image index (fixes #172)
 
-## [3.2.0] - 2020-04-13
+## [3.2.0] - 2021-04-13
 ### Added
 - Support for animations via Unity's legacy animation system (`Animation` component; #124)
 ### Fixed
@@ -135,7 +226,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Sample code for custom defer agent is now thread safe (fixes #161)
 - Meshes with two UV sets and vertex colors now work (fixes #162)
 
-## [3.1.0] - 2020-03-16
+## [3.1.0] - 2021-03-16
 ### Added
 - Unlit alpha blended ShaderGraph variants (thanks [@hybridherbst][hybridherbst] for #144)
 - Support for unsigned byte joint indices
@@ -149,7 +240,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Error when trying to set texture offset/scale but material doesn't have _MainTex property (thanks [@hybridherbst][hybridherbst] for #142)
 - Crash when trying to combine meshes created by glTFast by setting proper submesh vertex count (fixes #100)
 
-## [3.0.2] - 2020-02-07
+## [3.0.2] - 2021-02-07
 ### Changed
 - Had to bring back `GltfAsset.isDone` for render tests
 ### Fixed
@@ -157,7 +248,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Escaped, relative buffer/texture URIs now work on local file system consistently 
 - Rendertests work again
 
-## [3.0.1] - 2020-02-04
+## [3.0.1] - 2021-02-04
 ### Added
 - Error message when a UV set other than the first one is used (is unsupported; see issue #34)
 - Unit test for loading all models once (good for quick checks in comparison to performance tests, which take very long)
@@ -442,7 +533,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [KtxUnity]: https://github.com/atteneder/KtxUnity
 [DracoUnity]: https://github.com/atteneder/DracoUnity
 [aurorahcx]: https://github.com/aurorahcx
-[hybridherbst]: https://github.com/hybridherbst
 [Bersaelor]: https://github.com/Bersaelor
-[zharry]: https://github.com/zharry
+[EricBeetsOfficial-Opuscope]: https://github.com/EricBeetsOfficial-Opuscope
+[hybridherbst]: https://github.com/hybridherbst
+[mikejurka]: https://github.com/mikejurka
 [ReadyPlayerMe]: https://readyplayer.me
+[rt-nikowiss]: https://github.com/rt-nikowiss
+[zharry]: https://github.com/zharry

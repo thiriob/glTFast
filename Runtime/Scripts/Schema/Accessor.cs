@@ -17,6 +17,9 @@ using System;
 using UnityEngine;
 using UnityEngine.Assertions;
 
+// GLTF_EXPORT
+using UnityEngine.Rendering;
+
 namespace GLTFast.Schema {
 
     public enum GLTFComponentType
@@ -88,7 +91,9 @@ namespace GLTFast.Schema {
         [UnityEngine.SerializeField]
         string type;
 
-        private GLTFAccessorAttributeType _typeEnum = GLTFAccessorAttributeType.Undefined;
+        [NonSerialized]
+        GLTFAccessorAttributeType _typeEnum = GLTFAccessorAttributeType.Undefined;
+        
         public GLTFAccessorAttributeType typeEnum {
             get {
                 if (_typeEnum != GLTFAccessorAttributeType.Undefined) {
@@ -101,9 +106,10 @@ namespace GLTFast.Schema {
                     return GLTFAccessorAttributeType.Undefined;
                 }
             }
-            //set {
-            //    _typeEnum = value;
-            //}
+            set {
+                _typeEnum = value;
+                type = value.ToString();
+            }
         }
     
         /// <summary>
@@ -148,9 +154,8 @@ namespace GLTFast.Schema {
         /// </summary>
         public AccessorSparse sparse;
 
-        public static int GetAccessorComponentTypeLength( GLTFComponentType componentType ) {
-            switch (componentType)
-            {
+        public static int GetComponentTypeSize( GLTFComponentType componentType ) {
+            switch (componentType) {
                 case GLTFComponentType.Byte:
                 case GLTFComponentType.UnsignedByte:
                     return 1;
@@ -161,30 +166,50 @@ namespace GLTFast.Schema {
                 case GLTFComponentType.UnsignedInt:
                     return 4;
                 default:
-                    Debug.LogError("Unknown GLTFComponentType");
-                    return 0;
+                    throw new ArgumentOutOfRangeException(nameof(type), componentType, null);
             }
         }
-
-        public static int GetComponentTypeSize(GLTFComponentType type) {
-            switch (type) {
-                case GLTFComponentType.Byte:
-                    return 1;
-                case GLTFComponentType.UnsignedByte:
-                    return 1;
-                case GLTFComponentType.Short:
-                    return 2;
-                case GLTFComponentType.UnsignedShort:
-                    return 2;
-                case GLTFComponentType.UnsignedInt:
-                    return 4;
-                case GLTFComponentType.Float:
-                    return 4;
+        
+        public static GLTFComponentType GetComponentType(VertexAttributeFormat format) {
+            switch (format) {
+                case VertexAttributeFormat.Float32:
+                case VertexAttributeFormat.Float16:
+                    return GLTFComponentType.Float;
+                case VertexAttributeFormat.UNorm8:
+                case VertexAttributeFormat.UInt8:
+                    return GLTFComponentType.UnsignedByte;
+                case VertexAttributeFormat.SNorm8:
+                case VertexAttributeFormat.SInt8:
+                    return GLTFComponentType.Byte;
+                case VertexAttributeFormat.UNorm16:
+                case VertexAttributeFormat.UInt16:
+                    return GLTFComponentType.UnsignedShort;
+                case VertexAttributeFormat.SNorm16:
+                case VertexAttributeFormat.SInt16:
+                    return GLTFComponentType.Short;
+                case VertexAttributeFormat.UInt32:
+                case VertexAttributeFormat.SInt32:
+                    return GLTFComponentType.UnsignedInt;
                 default:
-                    throw new ArgumentOutOfRangeException(nameof(type), type, null);
+                    throw new ArgumentOutOfRangeException(nameof(format), format, null);
             }
         }
 
+        public static GLTFAccessorAttributeType GetAccessorAttributeType(int dimension) {
+            switch (dimension) {
+                case 1:
+                    return GLTFAccessorAttributeType.SCALAR;
+                case 2:
+                    return GLTFAccessorAttributeType.VEC2;
+                case 3:
+                    return GLTFAccessorAttributeType.VEC3;
+                case 4:
+                    return GLTFAccessorAttributeType.VEC4;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(dimension), dimension, null);
+            }
+        }
+        
         public static int GetAccessorAttributeTypeLength( GLTFAccessorAttributeType type ) {
             switch (type)
             {
@@ -214,13 +239,42 @@ namespace GLTFast.Schema {
             Assert.AreEqual(GLTFAccessorAttributeType.VEC3 ,typeEnum);
             if (min != null && min.Length > 2 && max != null && max.Length > 2) {
                 return new Bounds {
-                    max = new Vector3(-max[0], max[1], min[2]),
-                    min = new Vector3(-min[0], min[1], max[2])
+                    max = new Vector3(-min[0], max[1], max[2]),
+                    min = new Vector3(-max[0], min[1], min[2])
                 };
             }
             return null;
         }
 
         public bool isSparse => sparse != null;
+
+        public void GltfSerialize(JsonWriter writer) {
+            writer.AddObject();
+            if (bufferView >= 0) {
+                writer.AddProperty("bufferView", bufferView);
+            }
+            writer.AddProperty("componentType", (int)componentType);
+            writer.AddProperty("count", count);
+            writer.AddProperty("type", type);
+            if (byteOffset > 0) {
+                writer.AddProperty("byteOffset", byteOffset);
+            }
+            if (normalized) {
+                writer.AddProperty("normalized", normalized);
+            }
+            if (max!=null) {
+                writer.AddArrayProperty("max", max);
+            }
+            if (min!=null) {
+                writer.AddArrayProperty("min", min);
+            }
+
+            if (sparse != null) {
+                writer.AddProperty("sparse");
+                sparse.GltfSerialize(writer);
+                writer.Close();
+            }
+            writer.Close();
+        }
     }
 }

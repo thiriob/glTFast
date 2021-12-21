@@ -34,6 +34,13 @@ namespace GLTFast.Schema {
 		/// interpolation algorithm to define a keyframe graph (but not its target).
 		/// </summary>
 		public AnimationSampler[] samplers;
+		
+		public void GltfSerialize(JsonWriter writer) {
+			writer.AddObject();
+			GltfSerializeRoot(writer);
+			writer.Close();
+			throw new System.NotImplementedException($"GltfSerialize missing on {GetType()}");
+		}
     }
     
     [Serializable]
@@ -58,6 +65,10 @@ namespace GLTFast.Schema {
 	    /// The index of the node and TRS property to target.
 	    /// </summary>
 	    public AnimationChannelTarget target;
+	    
+	    public void GltfSerialize(JsonWriter writer) {
+		    throw new System.NotImplementedException($"GltfSerialize missing on {GetType()}");
+	    }
     }
 
     [Serializable]
@@ -86,6 +97,10 @@ namespace GLTFast.Schema {
 			    }
 				return m_Path;
 		    }
+	    }
+	    
+	    public void GltfSerialize(JsonWriter writer) {
+		    throw new System.NotImplementedException($"GltfSerialize missing on {GetType()}");
 	    }
     }
     
@@ -123,11 +138,12 @@ namespace GLTFast.Schema {
 		    get {
 			    if ( m_Interpolation == InterpolationType.Unknown ) {
 				    if (!string.IsNullOrEmpty (interpolation)) {
-					    m_Interpolation = (InterpolationType)System.Enum.Parse (typeof(InterpolationType), interpolation, true);
+					    m_Interpolation = (InterpolationType)Enum.Parse (typeof(InterpolationType), interpolation, true);
 					    interpolation = null;
 					    return m_Interpolation;
 				    }
-				    return InterpolationType.Unknown;
+
+				    m_Interpolation = InterpolationType.LINEAR;
 			    }
 			    return m_Interpolation;
 		    }
