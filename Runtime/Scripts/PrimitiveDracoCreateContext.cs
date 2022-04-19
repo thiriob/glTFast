@@ -1,4 +1,4 @@
-﻿// Copyright 2020-2021 Andreas Atteneder
+﻿// Copyright 2020-2022 Andreas Atteneder
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -47,7 +47,7 @@ namespace GLTFast {
                 );
         }
         
-        public override Primitive? CreatePrimitive() {
+        public override async Task<Primitive?> CreatePrimitive() {
 
             var mesh = dracoTask.Result;
             dracoTask.Dispose();
@@ -63,13 +63,13 @@ namespace GLTFast {
             }
             
             if (morphTargetsContext != null) {
-                morphTargetsContext.ApplyOnMeshAndDispose(mesh);
+                await morphTargetsContext.ApplyOnMeshAndDispose(mesh);
             }
 
 #if GLTFAST_KEEP_MESH_DATA
-            Profiler.BeginSample("UploadMeshData");
+            UnityEngine.Profiling.Profiler.BeginSample("UploadMeshData");
             mesh.UploadMeshData(false);
-            Profiler.EndSample();
+            UnityEngine.Profiling.Profiler.EndSample();
 #else
             /// Don't upload explicitely. Unity takes care of upload on demand/deferred
 

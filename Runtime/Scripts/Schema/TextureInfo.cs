@@ -1,4 +1,4 @@
-﻿// Copyright 2020-2021 Andreas Atteneder
+﻿// Copyright 2020-2022 Andreas Atteneder
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -25,10 +25,10 @@ namespace GLTFast.Schema {
 
         /// <summary>
         /// This integer value is used to construct a string in the format
-        /// TEXCOORD_<set index> which is a reference to a key in
+        /// TEXCOORD_&lt;set index&gt; which is a reference to a key in
         /// mesh.primitives.attributes (e.g. A value of 0 corresponds to TEXCOORD_0).
         /// </summary>
-        public int texCoord = 0;
+        public int texCoord;
 
         public TextureInfoExtension extensions;
         

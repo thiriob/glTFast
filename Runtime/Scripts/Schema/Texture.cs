@@ -1,4 +1,4 @@
-﻿// Copyright 2020-2021 Andreas Atteneder
+﻿// Copyright 2020-2022 Andreas Atteneder
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,6 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 //
+
+using System;
 
 namespace GLTFast.Schema {
 
@@ -58,6 +60,35 @@ namespace GLTFast.Schema {
                 extensions.GltfSerialize(writer);
             }
             writer.Close();
+        }
+
+        public override bool Equals(object obj) {
+            //Check for null and compare run-time types.
+            if (obj == null || ! GetType().Equals(obj.GetType())) {
+                return false;
+            }
+            return Equals((Texture)obj);
+        }
+        
+        bool Equals(Texture other) {
+            return source == other.source
+                && sampler == other.sampler
+                && (
+                    extensions == null && other.extensions == null
+                    || (extensions != null && extensions.Equals(other.extensions))
+                );
+        }
+
+        public override int GetHashCode() {
+#if NET_STANDARD
+            return HashCode.Combine(source, sampler, extensions.GetHashCode());
+#else
+                var hash = 17;
+                hash = hash * 31 + source;
+                hash = hash * 31 + sampler;
+                hash = hash * 31 + extensions.GetHashCode();
+                return hash;
+#endif
         }
     }
 }

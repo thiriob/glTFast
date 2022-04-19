@@ -1,4 +1,4 @@
-// Copyright 2020-2021 Andreas Atteneder
+// Copyright 2020-2022 Andreas Atteneder
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@
 //
 
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using UnityEngine;
 
@@ -75,7 +76,7 @@ namespace GLTFast.Schema {
             AddArray(name);
             foreach (var value in values) {
                 Separate();
-                m_Stream.Write(value.ToString("R"));
+                m_Stream.Write(value.ToString("R", CultureInfo.InvariantCulture));
             }
             CloseArray();
         }
@@ -97,6 +98,14 @@ namespace GLTFast.Schema {
             m_Stream.Write(name);
             m_Stream.Write("\":");
             m_Stream.Write(value.ToString());
+        }
+
+        public void AddProperty(string name, float value) {
+            Separate();
+            m_Stream.Write('"');
+            m_Stream.Write(name);
+            m_Stream.Write("\":");
+            m_Stream.Write(value.ToString("R", CultureInfo.InvariantCulture));
         }
         
         public void AddProperty(string name, string value) {

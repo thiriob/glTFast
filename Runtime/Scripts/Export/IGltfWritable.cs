@@ -1,4 +1,4 @@
-// Copyright 2020-2021 Andreas Atteneder
+// Copyright 2020-2022 Andreas Atteneder
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -27,17 +27,27 @@ namespace GLTFast.Export {
         void RegisterExtensionUsage(Extension extension, bool required = true);
         
         /// <summary>
-        /// Adds a Unity Texture to the glTF and returns the resulting image index
+        /// Adds an ImageExport to the glTF and returns the resulting image index
         /// </summary>
-        /// <param name="uTexture">Unity Texture</param>
+        /// <param name="imageExport">Image to be exported</param>
         /// <returns>glTF image index</returns>
-        int AddImage(Texture uTexture);
+        int AddImage(ImageExportBase imageExport);
 
         /// <summary>
         /// Creates a glTF texture from with a given image index
         /// </summary>
         /// <param name="imageId">glTF image index returned by <seealso cref="AddImage"/></param>
+        /// <param name="samplerId">glTF sampler index returned by <seealso cref="AddSampler"/></param>
         /// <returns>glTF texture index</returns>
-        int AddTexture(int imageId);
+        int AddTexture(int imageId, int samplerId);
+
+        /// <summary>
+        /// Creates a glTF sampler based on Unity filter and wrap settings
+        /// </summary>
+        /// <param name="filterMode">Texture filter mode</param>
+        /// <param name="wrapModeU">Texture wrap mode in U direction</param>
+        /// <param name="wrapModeV">Texture wrap mode in V direction</param>
+        /// <returns>glTF sampler index or -1 if no sampler is required</returns>
+        int AddSampler(FilterMode filterMode, TextureWrapMode wrapModeU, TextureWrapMode wrapModeV);
     }
 }

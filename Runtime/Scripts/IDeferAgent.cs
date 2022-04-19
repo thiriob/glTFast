@@ -1,4 +1,4 @@
-﻿// Copyright 2020-2021 Andreas Atteneder
+﻿// Copyright 2020-2022 Andreas Atteneder
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -43,14 +43,14 @@ namespace GLTFast {
         /// <summary>
         /// Conditional yield. May continue right away or yield once, based on time.
         /// </summary>
-        /// <returns>If <see cref="ShoudDefer"/> returns true, returns Task.Yield(). Otherwise returns sync</returns>
+        /// <returns>If <see cref="ShouldDefer"/> returns true, returns Task.Yield(). Otherwise returns sync</returns>
         Task BreakPoint();
         
         /// <summary>
         /// Conditional yield. May continue right away or yield once, based on time and duration.
         /// </summary>
         /// <param name="duration">Predicted duration of upcoming processing in seconds</param>
-        /// <returns>If <see cref="ShoudDefer"/> returns true, returns Task.Yield(). Otherwise returns sync</returns>
+        /// <returns>If <see cref="ShouldDefer"/> returns true, returns Task.Yield(). Otherwise returns sync</returns>
         Task BreakPoint( float duration );
     }
 }

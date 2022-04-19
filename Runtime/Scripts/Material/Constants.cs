@@ -1,4 +1,4 @@
-﻿// Copyright 2020-2021 Andreas Atteneder
+﻿// Copyright 2020-2022 Andreas Atteneder
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -21,6 +21,10 @@ namespace GLTFast.Materials {
     /// TODO: Make const var location consistent
     /// </summary>
     public static class Constants {
+        
+        /// <summary>
+        /// Shader keyword for normal mapping
+        /// </summary>
         public const string kwNormalMap = "_NORMALMAP";
     }
 }

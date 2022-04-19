@@ -1,4 +1,4 @@
-﻿// Copyright 2020-2021 Andreas Atteneder
+﻿// Copyright 2020-2022 Andreas Atteneder
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,6 +24,10 @@ using UnityEngine;
 namespace GLTFast {
     public class GameObjectInstantiator : IInstantiator {
 
+        public class Settings {
+            public bool skinUpdateWhenOffscreen = true;
+        }
+        
         public class SceneInstance {
             public List<Camera> cameras { get; private set; }
 
@@ -34,6 +38,8 @@ namespace GLTFast {
                 cameras.Add(camera);
             }
         }
+        
+        protected Settings settings;
         
         protected ICodeLogger logger;
         
@@ -48,10 +54,17 @@ namespace GLTFast {
         /// </summary>
         public SceneInstance sceneInstance { get; protected set; }
         
-        public GameObjectInstantiator(IGltfReadable gltf, Transform parent, ICodeLogger logger = null) {
+        public GameObjectInstantiator(
+            IGltfReadable gltf,
+            Transform parent,
+            ICodeLogger logger = null,
+            Settings settings = null
+            )
+        {
             this.gltf = gltf;
             this.parent = parent;
             this.logger = logger;
+            this.settings = settings ?? new Settings();
         }
 
         public virtual void Init() {
@@ -80,7 +93,7 @@ namespace GLTFast {
             nodes[nodeIndex].transform.SetParent(nodes[parentIndex].transform,false);
         }
 
-        public void SetNodeName(uint nodeIndex, string name) {
+        public virtual void SetNodeName(uint nodeIndex, string name) {
             nodes[nodeIndex].name = name ?? $"Node-{nodeIndex}";
         }
 
@@ -114,6 +127,7 @@ namespace GLTFast {
                 renderer = mr;
             } else {
                 var smr = meshGo.AddComponent<SkinnedMeshRenderer>();
+                smr.updateWhenOffscreen = settings.skinUpdateWhenOffscreen;
                 if (joints != null) {
                     var bones = new Transform[joints.Length];
                     for (var j = 0; j < bones.Length; j++)
@@ -310,7 +324,7 @@ namespace GLTFast {
         //     }
         // }
 
-        public void AddScene(
+        public virtual void AddScene(
             string name,
             uint[] nodeIndices
 #if UNITY_ANIMATION

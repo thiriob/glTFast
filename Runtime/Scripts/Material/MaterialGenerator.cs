@@ -1,4 +1,4 @@
-﻿// Copyright 2020-2021 Andreas Atteneder
+﻿// Copyright 2020-2022 Andreas Atteneder
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,13 +13,13 @@
 // limitations under the License.
 //
 
-#if USING_URP || USING_HDRP
+#if USING_URP || USING_HDRP || (UNITY_SHADER_GRAPH_12_OR_NEWER && GLTFAST_BUILTIN_SHADER_GRAPH)
 #define GLTFAST_SHADER_GRAPH
 #else
 #define GLTFAST_BUILTIN_RP
 #endif
 
-using System.Collections.Generic;
+using System;
 using GLTFast.Schema;
 using UnityEngine;
 using Unity.Mathematics;
@@ -28,12 +28,12 @@ using UnityEngine.Rendering;
 #if USING_URP
 using UnityEngine.Rendering.Universal;
 #endif
-#if USING_HDRP
-using UnityEngine.Rendering.HighDefinition;
-#endif
 
 namespace GLTFast.Materials {
 
+    /// <summary>
+    /// Common base class for implementations of IMaterialGenerator
+    /// </summary>
     public abstract class MaterialGenerator : IMaterialGenerator {
         protected enum MaterialType {
             // Unknown,
@@ -57,6 +57,7 @@ namespace GLTFast.Materials {
         public static readonly int bumpMapScaleTransformPropId = Shader.PropertyToID("_BumpMap_ST");
         public static readonly int bumpMapUVChannelPropId = Shader.PropertyToID("_BumpMapUVChannel");
         public static readonly int bumpScalePropId = Shader.PropertyToID("_BumpScale");
+        public static readonly int cullPropId = Shader.PropertyToID("_Cull");
         public static readonly int cullModePropId = Shader.PropertyToID("_CullMode");
         public static readonly int cutoffPropId = Shader.PropertyToID("_Cutoff");
         public static readonly int dstBlendPropId = Shader.PropertyToID("_DstBlend");
@@ -81,6 +82,7 @@ namespace GLTFast.Materials {
         public static readonly int specGlossMapRotationPropId = Shader.PropertyToID("_SpecGlossMapRotation"); // TODO: Support in shader!
         public static readonly int specGlossMapUVChannelPropId = Shader.PropertyToID("_SpecGlossMapUVChannel"); // TODO: Support in shader!
         public static readonly int srcBlendPropId = Shader.PropertyToID("_SrcBlend");
+        public static readonly int zWritePropId = Shader.PropertyToID("_ZWrite");
 
         static IMaterialGenerator defaultMaterialGenerator;
         
@@ -88,28 +90,32 @@ namespace GLTFast.Materials {
 
             if (defaultMaterialGenerator != null) return defaultMaterialGenerator;
 
-            // ReSharper disable once Unity.PerformanceCriticalCodeNullComparison
-            if (GraphicsSettings.renderPipelineAsset != null) {
+            var renderPipeline = RenderPipelineUtils.DetectRenderPipeline();
+
+            switch (renderPipeline) {
+#if UNITY_SHADER_GRAPH_12_OR_NEWER && GLTFAST_BUILTIN_SHADER_GRAPH
+                case RenderPipeline.BuiltIn:
+                    defaultMaterialGenerator = new BuiltInShaderGraphMaterialGenerator();
+                    return defaultMaterialGenerator;
+#elif GLTFAST_BUILTIN_RP || UNITY_EDITOR
+                case RenderPipeline.BuiltIn:
+                    defaultMaterialGenerator = new BuiltInMaterialGenerator();
+                    return defaultMaterialGenerator;
+#endif
 #if USING_URP
-                if (GraphicsSettings.renderPipelineAsset is UniversalRenderPipelineAsset urpAsset) {
+                case RenderPipeline.Universal:
+                    var urpAsset = (UniversalRenderPipelineAsset) (QualitySettings.renderPipeline ? QualitySettings.renderPipeline : GraphicsSettings.defaultRenderPipeline);
                     defaultMaterialGenerator = new UniveralRPMaterialGenerator(urpAsset);
                     return defaultMaterialGenerator;
-                }
 #endif
+                case RenderPipeline.HighDefinition:
 #if USING_HDRP
-                if (GraphicsSettings.renderPipelineAsset is HDRenderPipelineAsset) {
                     defaultMaterialGenerator = new HighDefinitionRPMaterialGenerator();
                     return defaultMaterialGenerator;
-                }
 #endif
-                throw new System.Exception("glTFast: Unknown Render Pipeline");
+                default:
+                    throw new System.Exception($"Could not determine default MaterialGenerator (render pipeline {renderPipeline})");
             }
-#if GLTFAST_BUILTIN_RP || UNITY_EDITOR
-            defaultMaterialGenerator = new BuiltInMaterialGenerator();
-            return defaultMaterialGenerator;
-#else
-            throw new System.Exception("Could not determine default MaterialGenerator");
-#endif
         }
 
         protected ICodeLogger logger;

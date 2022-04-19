@@ -1,4 +1,4 @@
-﻿// Copyright 2020-2021 Andreas Atteneder
+﻿// Copyright 2020-2022 Andreas Atteneder
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ namespace GLTFast {
             /// <summary>
             /// Use original node names.
             /// Fallback to mesh's name (if present)
-            /// Fallback to "Node_<index>" as last resort. 
+            /// Fallback to "Node_&lt;index&gt;" as last resort. 
             /// </summary>
             Original,
             /// <summary>
@@ -56,7 +56,7 @@ namespace GLTFast {
         /// Note: Creating mipmaps from Jpeg/PNG textures is very slow (at the moment).
         /// See https://github.com/atteneder/glTFast/issues/220 for details 
         /// </summary>
-        public bool generateMipMaps = false;
+        public bool generateMipMaps;
 
         /// <summary>
         /// These two properties define the default filtering mode for textures that have no such specification in data

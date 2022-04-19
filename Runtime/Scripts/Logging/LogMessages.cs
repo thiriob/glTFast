@@ -1,4 +1,4 @@
-﻿// Copyright 2020-2021 Andreas Atteneder
+﻿// Copyright 2020-2022 Andreas Atteneder
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -59,6 +59,7 @@ namespace GLTFast {
         NamingOverride,
         PackageMissing,
         PrimitiveModeUnsupported,
+        RemapUnsupported,
         ShaderMissing,
         SkinMissing,
         SparseAccessor,
@@ -111,7 +112,8 @@ namespace GLTFast {
             { LogCode.NamingOverride, "Overriding naming method to be OriginalUnique (animation requirement)" },
             { LogCode.PackageMissing, "{0} package needs to be installed in order to support glTF extension {1}!\nSee https://github.com/atteneder/glTFast#installing for instructions" },
             { LogCode.PrimitiveModeUnsupported, "Primitive mode {0} is untested" },
-            { LogCode.ShaderMissing, "Shader \"{0}\" is missing. Make sure to include it in the build (see https://github.com/atteneder/glTFast/blob/main/Documentation%7E/glTFast.md#materials-and-shader-variants )" },
+            { LogCode.RemapUnsupported, "{0} remap is not fully supported" },
+            { LogCode.ShaderMissing, "Shader \"{0}\" is missing. Make sure to include it in the build (see https://github.com/atteneder/glTFast/blob/main/Documentation%7E/ProjectSetup.md#materials-and-shader-variants )" },
             { LogCode.SkinMissing, "Skin missing" },
             { LogCode.SparseAccessor, "Sparse Accessor not supported ({0})" },
             { LogCode.TextureDownloadFailed, "Download texture {1} failed: {0}" },

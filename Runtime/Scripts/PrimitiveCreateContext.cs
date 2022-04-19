@@ -1,4 +1,4 @@
-﻿// Copyright 2020-2021 Andreas Atteneder
+﻿// Copyright 2020-2022 Andreas Atteneder
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ using UnityEngine.Rendering;
 using Unity.Jobs;
 using System.Runtime.InteropServices;
 using UnityEngine.Profiling;
+using System.Threading.Tasks;
 
 namespace GLTFast {
 
@@ -37,7 +38,7 @@ namespace GLTFast {
 
         public override bool IsCompleted => jobHandle.IsCompleted;
 
-        public override Primitive? CreatePrimitive() {
+        public override async Task<Primitive?> CreatePrimitive() {
             Profiler.BeginSample("CreatePrimitive");
             jobHandle.Complete();
             var msh = new UnityEngine.Mesh();
@@ -118,7 +119,7 @@ namespace GLTFast {
 #endif
 
             if (morphTargetsContext != null) {
-                morphTargetsContext.ApplyOnMeshAndDispose(msh);
+                await morphTargetsContext.ApplyOnMeshAndDispose(msh);
             }
 
             Profiler.BeginSample("Dispose");
@@ -126,6 +127,7 @@ namespace GLTFast {
             Profiler.EndSample();
 
             Profiler.EndSample();
+
             return new Primitive(msh,materials);
         }
         

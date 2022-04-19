@@ -1,4 +1,4 @@
-// Copyright 2020-2021 Andreas Atteneder
+// Copyright 2020-2022 Andreas Atteneder
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ using GLTFast.Jobs;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using Debug = UnityEngine.Debug;
+using Object = UnityEngine.Object;
 #if MESHOPT
 using Meshoptimizer;
 #endif
@@ -51,6 +52,10 @@ namespace GLTFast {
     using Schema;
     using Loading;
 
+    /// <summary>
+    /// Loads a glTF's content, converts it to Unity resources and is able to
+    /// feed it to an <cref>IInstantiator</cref> for instantiation.
+    /// </summary>
     public class GltfImport : IGltfReadable, IGltfBuffers {
 
         /// <summary>
@@ -76,6 +81,10 @@ namespace GLTFast {
             150_000_000;
 #endif
         
+        /// <summary>
+        /// Default value for a C# Job's innerloopBatchCount parameter.
+        /// See <cref>IJobParallelForExtensions.Schedule</cref>
+        /// </summary>
         public const int DefaultBatchCount = 512;
 
         const string PrimitiveName = "Primitive";
@@ -229,6 +238,13 @@ namespace GLTFast {
 
         ICodeLogger logger;
         
+        /// <summary>
+        /// Constructs a GltfImport instance with injectable customization objects.
+        /// </summary>
+        /// <param name="downloadProvider">Provides file access or download customization</param>
+        /// <param name="deferAgent">Provides custom update loop behavior for better frame rate control</param>
+        /// <param name="materialGenerator">Provides custom glTF to Unity material conversion</param>
+        /// <param name="logger">Provides custom message logging</param>
         public GltfImport(
             IDownloadProvider downloadProvider=null,
             IDeferAgent deferAgent=null,
@@ -239,8 +255,13 @@ namespace GLTFast {
             this.downloadProvider = downloadProvider ?? new DefaultDownloadProvider();
 
             if (deferAgent == null) {
-                if (defaultDeferAgent == null) {
-                    defaultDeferAgent = new GameObject("glTFast_DeferAgent").AddComponent<TimeBudgetPerFrameDeferAgent>(); 
+                if ((defaultDeferAgent as Object) == null) { // Cast to Object to enforce Unity Object's null check (is MonoBehavior alive?)
+                    var defaultDeferAgentGameObject = new GameObject("glTFast_DeferAgent");
+                    // Keep it across scene loads
+                    Object.DontDestroyOnLoad(defaultDeferAgentGameObject);
+                    defaultDeferAgent = defaultDeferAgentGameObject.AddComponent<TimeBudgetPerFrameDeferAgent>();
+                    // Adding a DefaultDeferAgent component will make it un-register via <see cref="UnsetDefaultDeferAgent"/>
+                    defaultDeferAgentGameObject.AddComponent<DefaultDeferAgent>();
                 }
                 this.deferAgent = defaultDeferAgent;
             } else {
@@ -259,6 +280,7 @@ namespace GLTFast {
         /// </summary>
         /// <param name="url">Uniform Resource Locator. Can be a file path (using the "file://" scheme) or a web adress.</param>
         /// <param name="importSettings">Import Settings (<see cref="ImportSettings"/> for details)</param>
+        /// <returns>True if loading was successful, false otherwise</returns>
         public async Task<bool> Load( string url, ImportSettings importSettings = null ) {
             return await Load(new Uri(url,UriKind.RelativeOrAbsolute), importSettings);
         }
@@ -269,6 +291,7 @@ namespace GLTFast {
         /// </summary>
         /// <param name="url">Uniform Resource Locator. Can be a file path (using the "file://" scheme) or a web adress.</param>
         /// <param name="importSettings">Import Settings (<see cref="ImportSettings"/> for details)</param>
+        /// <returns>True if loading was successful, false otherwise</returns>
         public async Task<bool> Load( Uri url, ImportSettings importSettings = null) {
             settings = importSettings ?? new ImportSettings();
             return await LoadRoutine(url);
@@ -425,16 +448,45 @@ namespace GLTFast {
             }
         }
 
+        /// <summary>
+        /// Number of materials
+        /// </summary>
         public int materialCount => materials?.Length ?? 0;
+        
+        /// <summary>
+        /// Number of images
+        /// </summary>
         public int imageCount => images?.Length ?? 0;
+        
+        /// <summary>
+        /// Number of textures
+        /// </summary>
         public int textureCount => textures?.Length ?? 0;
-        public int? defaultSceneIndex => gltfRoot != null && gltfRoot.scene >= 0 ? gltfRoot.scene : (int?) null; 
+        
+        /// <summary>
+        /// Default scene index
+        /// </summary>
+        public int? defaultSceneIndex => gltfRoot != null && gltfRoot.scene >= 0 ? gltfRoot.scene : (int?) null;
+        
+        /// <summary>
+        /// Number of scenes
+        /// </summary>
         public int sceneCount => gltfRoot?.scenes?.Length ?? 0;
 
+        /// <summary>
+        /// Get a glTF's scene's name by its index
+        /// </summary>
+        /// <param name="sceneIndex">glTF scene index</param>
+        /// <returns>Scene name or null</returns>
         public string GetSceneName(int sceneIndex) {
             return gltfRoot?.scenes?[sceneIndex]?.name;
         }
         
+        /// <summary>
+        /// Get a Unity Material by its glTF material index 
+        /// </summary>
+        /// <param name="index">glTF material index</param>
+        /// <returns>Corresponding Unity Material</returns>
         public UnityEngine.Material GetMaterial( int index = 0 ) {
             if(materials!=null && index >= 0 && index < materials.Length ) {
                 return materials[index];
@@ -442,6 +494,10 @@ namespace GLTFast {
             return null;
         }
 
+        /// <summary>
+        /// Returns a fallback default material that is provided by the IMaterialGenerator
+        /// </summary>
+        /// <returns></returns>
         public UnityEngine.Material GetDefaultMaterial() {
 #if UNITY_EDITOR
             if (defaultMaterial == null) {
@@ -453,6 +509,11 @@ namespace GLTFast {
 #endif
         }
         
+        /// <summary>
+        /// Returns a texture by its glTF image index
+        /// </summary>
+        /// <param name="index">glTF image index</param>
+        /// <returns>Corresponding Unity texture</returns>
         public Texture2D GetImage( int index = 0 ) {
             if(images!=null && index >= 0 && index < images.Length ) {
                 return images[index];
@@ -460,6 +521,11 @@ namespace GLTFast {
             return null;
         }
 
+        /// <summary>
+        /// Returns a texture by its glTF texture index
+        /// </summary>
+        /// <param name="index">glTF texture index</param>
+        /// <returns>Corresponding Unity texture</returns>
         public Texture2D GetTexture( int index = 0 ) {
             if(textures!=null && index >= 0 && index < textures.Length ) {
                 return textures[index];
@@ -468,11 +534,19 @@ namespace GLTFast {
         }
         
 #if UNITY_ANIMATION
+        /// <summary>
+        /// Returns all imported animation clips
+        /// </summary>
+        /// <returns>All imported animation clips</returns>
         public AnimationClip[] GetAnimationClips() {
             return animationClips;
         }
 #endif
 
+        /// <summary>
+        /// Returns all imported meshes
+        /// </summary>
+        /// <returns>All imported meshes</returns>
         public UnityEngine.Mesh[] GetMeshes() {
             if (primitives == null || primitives.Length < 1) return null;
             var result = new UnityEngine.Mesh[primitives.Length];
@@ -513,6 +587,16 @@ namespace GLTFast {
         
 #endregion Public
 
+        /// <summary>
+        /// Allows un-registering default IDeferAgent, if it's no longer available
+        /// </summary>
+        /// <param name="deferAgent">IDeferAgent in question</param>
+        internal static void UnsetDefaultDeferAgent(IDeferAgent deferAgent) {
+            if (defaultDeferAgent == deferAgent) {
+                defaultDeferAgent = null;
+            }
+        }
+        
         async Task<bool> LoadRoutine( Uri url ) {
 
             var download = await downloadProvider.Request(url);
@@ -1261,22 +1345,32 @@ namespace GLTFast {
             }
 
             if(images!=null && gltfRoot.textures!=null) {
+                SamplerKey defaultKey = new SamplerKey(new Sampler());
                 textures = new Texture2D[gltfRoot.textures.Length];
-                var imageVariants = new Dictionary<int,Texture2D>[images.Length];
+                var imageVariants = new Dictionary<SamplerKey,Texture2D>[images.Length];
                 for (int textureIndex = 0; textureIndex < gltfRoot.textures.Length; textureIndex++)
                 {
                     var txt = gltfRoot.textures[textureIndex];
+                    SamplerKey key;
+                    Sampler sampler = null;
+                    if(txt.sampler>=0) {
+                        sampler = gltfRoot.samplers[txt.sampler];
+                        key = new SamplerKey(sampler);
+                    } else {
+                        key = defaultKey;
+                    }
+
                     var imageIndex = txt.GetImageIndex();
                     var img = images[imageIndex];
                     if(imageVariants[imageIndex]==null) {
                         if(txt.sampler>=0) {
-                            gltfRoot.samplers[txt.sampler].Apply(img, settings.defaultMinFilterMode, settings.defaultMagFilterMode);
+                            sampler.Apply(img, settings.defaultMinFilterMode, settings.defaultMagFilterMode);
                         }
-                        imageVariants[imageIndex] = new Dictionary<int, Texture2D>();
-                        imageVariants[imageIndex][txt.sampler] = img;
+                        imageVariants[imageIndex] = new Dictionary<SamplerKey,Texture2D>();
+                        imageVariants[imageIndex][key] = img;
                         textures[textureIndex] = img;
                     } else {
-                        if (imageVariants[imageIndex].TryGetValue(txt.sampler, out var imgVariant)) {
+                        if (imageVariants[imageIndex].TryGetValue(key, out var imgVariant)) {
                             textures[textureIndex] = imgVariant;
                         } else {
                             var newImg = Texture2D.Instantiate(img);
@@ -1285,13 +1379,10 @@ namespace GLTFast {
                             newImg.name = string.Format("{0}_sampler{1}",img.name,txt.sampler);
                             logger?.Warning(LogCode.ImageMultipleSamplers,imageIndex.ToString());
 #endif
-                            if(txt.sampler>=0) {
-                                gltfRoot.samplers[txt.sampler].Apply(newImg, settings.defaultMinFilterMode, settings.defaultMagFilterMode);
-                            }
-                            imageVariants[imageIndex][txt.sampler] = newImg;
+                            sampler?.Apply(newImg, settings.defaultMinFilterMode, settings.defaultMagFilterMode);
+                            imageVariants[imageIndex][key] = newImg;
                             textures[textureIndex] = newImg;
                         }
-                        
                     }
                 }
             }
@@ -1326,7 +1417,10 @@ namespace GLTFast {
                     while(!primitiveContext.IsCompleted) {
                         await Task.Yield();
                     }
-                    var primitive = primitiveContext.CreatePrimitive();
+                    var primitive = await primitiveContext.CreatePrimitive();
+                    // The import failed :\
+                    // await defaultDeferAgent.BreakPoint();
+
                     if(primitive.HasValue) {
                         primitives[primitiveContext.primtiveIndex] = primitive.Value;
                         resources.Add(primitive.Value.mesh);
@@ -2262,7 +2356,7 @@ namespace GLTFast {
         }
 
         MorphTargetsContext CreateMorphTargetsContext(MeshPrimitive primitive,string[] meshTargetNames) {
-            var morphTargetsContext = new MorphTargetsContext(primitive.targets.Length,meshTargetNames);
+            var morphTargetsContext = new MorphTargetsContext(primitive.targets.Length,meshTargetNames,deferAgent);
             foreach (var morphTarget in primitive.targets) {
                 var success = morphTargetsContext.AddMorphTarget(
                     this,
