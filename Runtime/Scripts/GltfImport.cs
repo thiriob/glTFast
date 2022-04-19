@@ -107,7 +107,7 @@ namespace GLTFast {
             Extensions.MeshGPUInstancing,
         };
 
-        IDeferAgent defaultDeferAgent;
+       static IDeferAgent defaultDeferAgent;
         
         IDownloadProvider downloadProvider;
         IMaterialGenerator materialGenerator;
