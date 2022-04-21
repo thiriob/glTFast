@@ -8,10 +8,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - `RenderPipelineUtils` to detect current render pipeline
 - Option to make glTFast an alternative `.glb`/`.gltf` importer (not default anymore; via scripting define `GLTFAST_FORCE_DEFAULT_IMPORTER_OFF`). Useful in projects where you have another default importer for glTF (thanks @hybridherbst][hybridherbst] for #367)
+- Prefabs `glTF-StableFramerate` and `glTF-FastestLoading` for easy, no-code setup of global runtime loading behavior (via `IDeferAgent`)
+- `GltfImport.SetDefaultDeferAgent` and `GltfImport.UnsetDefaultDeferAgent` for setup of global runtime loading behavior (via `IDeferAgent`)
+- `TimeBudgetPerFrameDeferAgent` component now has a `frameBudget` property with a nice slider in the inspector
+- `UninterruptedDefaultDeferAgent`, a Monobehavior wrapping `UninterruptedDeferAgent`
 ### Changed
 - (DOTS) Update to Entities 0.50
 - (DOTS) Removed unused `GltfComponent`
 - Bumped Mathematics and Burst package dependency versions to current 2019 LTS verified versions
+- Renamed `UniveralRPMaterialGenerator` to `UniversalRPMaterialGenerator` (typo)
 ### Fixed
 - Using correct file API for reading bytes in `EditorDownloadProvider` (thanks [@hybridherbst][hybridherbst] for #360)
 - GUID conflict with UnityGLTF
@@ -21,6 +26,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - (Import) Better error handling when textures are missing
 - (Export) Remember destination path when exporting individual GameObjects from menu
 - (Export) Vertical texture transform offset is correct now
+- Improved relative file path handling on platforms with non-forward slash directory separator (Windows)
+- (Import) Draco compressed meshes' submeshes now have bounds set from the accessor's min/max values (just like regular/uncompressed meshes; #384)
+- (Export) De-duplication by properly re-using glTF `mesh` if accessors and materials are identical (#364)
+- (Export) Removed error messages about non-matching Profiler calls (#357)
 
 ## [4.6.0] - 2022-02-23
 ### Added
