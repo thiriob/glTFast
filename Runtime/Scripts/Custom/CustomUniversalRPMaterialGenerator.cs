@@ -26,7 +26,7 @@ using Texture = GLTFast.Schema.Texture;
 
 namespace GLTFast.Materials {
 
-    public class CustomUniversalRPMaterialGenerator : ShaderGraphMaterialGenerator {
+    public class CustomUniversalRPMaterialGenerator : CustomShaderGraphMaterialGenerator {
 
         static bool supportsCameraOpaqueTexture;
         
