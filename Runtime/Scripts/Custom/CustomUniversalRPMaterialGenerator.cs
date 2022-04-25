@@ -33,7 +33,7 @@ namespace GLTFast.Materials {
         static readonly int k_AlphaClip = Shader.PropertyToID("_AlphaClip");
         static readonly int k_Surface = Shader.PropertyToID("_Surface");
 
-        public UniveralRPMaterialGenerator(UniversalRenderPipelineAsset renderPipelineAsset) {
+        public CustomUniversalRPMaterialGenerator(UniversalRenderPipelineAsset renderPipelineAsset) {
             supportsCameraOpaqueTexture = renderPipelineAsset.supportsCameraOpaqueTexture;
         }
         
