@@ -73,7 +73,7 @@ namespace GLTFast.Materials {
         static readonly int modePropId = Shader.PropertyToID("_Mode");
 
 #if UNITY_EDITOR
-        const string SHADER_PATH_PREFIX = "Packages/com.atteneder.gltfast/Runtime/Shader/Built-In/";
+        const string SHADER_PATH_PREFIX = "Assets/Modules/GltFast/Runtime/Shader/Built-In/";
         const string SHADER_PATH_PBR_METALLIC_ROUGHNESS = "glTFPbrMetallicRoughness.shader";
         const string SHADER_PATH_PBR_SPECULAR_GLOSSINESS = "glTFPbrSpecularGlossiness.shader";
         const string SHADER_PATH_UNLIT = "glTFUnlit.shader";
